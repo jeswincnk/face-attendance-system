@@ -1,0 +1,656 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Attendance Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        border-radius: 15px;
+        transition: transform 0.3s, box-shadow 0.3s;
+        border: none !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+    }
+    .stat-card.bg-purple {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    }
+    .stat-card.bg-green {
+        background: linear-gradient(135deg, #48bb78 0%, #38a169 100%) !important;
+    }
+    .stat-card.bg-red {
+        background: linear-gradient(135deg, #f56565 0%, #c53030 100%) !important;
+    }
+    .stat-card.bg-orange {
+        background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%) !important;
+    }
+    .stat-card.bg-cyan {
+        background: linear-gradient(135deg, #17a2b8 0%, #138496 100%) !important;
+    }
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        animation: countUp 1s ease-out;
+    }
+    @keyframes countUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .pulse {
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    .recent-checkin {
+        animation: slideIn 0.5s ease-out;
+        border-left: 4px solid #28a745;
+        margin-bottom: 10px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateX(-20px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+    .status-badge {
+        font-size: 0.9rem;
+        padding: 5px 12px;
+        border-radius: 20px;
+    }
+    .employee-photo {
+        width: 50px;
+        height: 50px;
+        object-fit: cover;
+        border: 3px solid #fff;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .presence-table tr.table-success { background-color: rgba(72, 187, 120, 0.15) !important; }
+    .presence-table tr.table-warning { background-color: rgba(237, 137, 54, 0.15) !important; }
+    .presence-table tr.table-danger { background-color: rgba(245, 101, 101, 0.15) !important; }
+    .presence-table tr.table-info { background-color: rgba(23, 162, 184, 0.15) !important; }
+    .mini-stat {
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+    }
+    /* Employee Hours Table Styles */
+    .employee-hours-table {
+        font-size: 0.9rem;
+    }
+    .employee-hours-table th {
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .employee-hours-table td {
+        vertical-align: middle;
+    }
+    .employee-hours-table input[type="time"],
+    .employee-hours-table input[type="number"] {
+        font-size: 0.85rem;
+        padding: 0.25rem 0.5rem;
+    }
+    .employee-row .form-control:disabled {
+        background-color: #e9ecef;
+        opacity: 0.7;
+    }
+    .employee-row.custom-enabled .form-control:not(:disabled) {
+        background-color: #fff3cd;
+        border-color: #ffc107;
+    }
+    .save-btn {
+        min-width: 70px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-calendar-check"></i> Live Attendance Dashboard</h2>
+        <div>
+            <span class="badge bg-primary">{{ today|date:"l, F d, Y" }}</span>
+            <span id="liveTime" class="badge bg-dark ms-2"></span>
+            <a href="{% url 'recognition:live_recognition' %}" class="btn btn-sm btn-success ms-2">
+                <i class="bi bi-camera-video"></i> Live Recognition
+            </a>
+            <button class="btn btn-sm btn-outline-primary ms-2" onclick="refreshData()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+    
+    <!-- Main Stats Cards -->
+    <div class="row mt-4" id="statsCards">
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card bg-purple text-center text-white">
+                <div class="card-body">
+                    <i class="bi bi-people-fill fs-1"></i>
+                    <h6 class="mt-2">Total Employees</h6>
+                    <h1 class="stat-number" id="totalEmployees">{{ total_employees }}</h1>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card bg-green text-center text-white">
+                <div class="card-body">
+                    <i class="bi bi-check-circle-fill fs-1"></i>
+                    <h6 class="mt-2">Present Today</h6>
+                    <h1 class="stat-number pulse" id="presentCount">{{ present_count }}</h1>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card bg-red text-center text-white">
+                <div class="card-body">
+                    <i class="bi bi-x-circle-fill fs-1"></i>
+                    <h6 class="mt-2">Absent Today</h6>
+                    <h1 class="stat-number" id="absentCount">{{ absent_count }}</h1>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card bg-orange text-center text-white">
+                <div class="card-body">
+                    <i class="bi bi-clock-fill fs-1"></i>
+                    <h6 class="mt-2">Late Arrivals</h6>
+                    <h1 class="stat-number" id="lateCount">{{ late_count }}</h1>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Presence Tracking Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-radar"></i> Real-Time Presence Tracking</h5>
+                    <div>
+                        <a href="{% url 'recognition:live_recognition' %}" class="btn btn-sm btn-warning">
+                            <i class="bi bi-search"></i> Run Presence Scan
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Presence Stats -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="mini-stat bg-success bg-opacity-25">
+                                <h3 class="text-success mb-0">{{ presence_stats.present }}</h3>
+                                <small class="text-muted">Currently Present</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mini-stat bg-warning bg-opacity-25">
+                                <h3 class="text-warning mb-0">{{ presence_stats.warning }}</h3>
+                                <small class="text-muted">Not Detected (Warning)</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mini-stat bg-danger bg-opacity-25">
+                                <h3 class="text-danger mb-0">{{ presence_stats.absent }}</h3>
+                                <small class="text-muted">Auto-Marked Absent</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mini-stat bg-info bg-opacity-25">
+                                <h3 class="text-info mb-0">{{ presence_stats.checked_out }}</h3>
+                                <small class="text-muted">Auto Checked-Out</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle"></i> <strong>Auto-Tracking Rules:</strong>
+                        1st scan without detection → Warning | 3rd consecutive → Mark ABSENT (no check-in) or AUTO CHECK-OUT (if checked in)
+                    </div>
+                    
+                    <!-- Presence Table -->
+                    <div class="table-responsive">
+                        <table class="table table-hover presence-table">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Department</th>
+                                    <th>Presence Status</th>
+                                    <th>Warnings</th>
+                                    <th>Last Seen</th>
+                                    <th>Check-in</th>
+                                    <th>Check-out</th>
+                                    <th>Work Hours</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in presence_list %}
+                                <tr class="{% if item.status == 'present' %}table-success{% elif item.status == 'warning' %}table-warning{% elif item.status == 'absent' %}table-danger{% elif item.status == 'checked_out' %}table-info{% endif %}">
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if item.employee.photo %}
+                                                <img src="{{ item.employee.photo.url }}" class="rounded-circle me-2" style="width: 35px; height: 35px; object-fit: cover;">
+                                            {% else %}
+                                                <div class="rounded-circle bg-secondary me-2 d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;">
+                                                    <i class="bi bi-person-fill text-white"></i>
+                                                </div>
+                                            {% endif %}
+                                            <div>
+                                                <strong>{{ item.employee.full_name }}</strong><br>
+                                                <small class="text-muted">{{ item.employee.employee_id }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>{{ item.employee.department.name|default:"-" }}</td>
+                                    <td>
+                                        {% if item.status == 'present' %}
+                                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> Present</span>
+                                        {% elif item.status == 'warning' %}
+                                            <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle"></i> Warning</span>
+                                        {% elif item.status == 'absent' %}
+                                            <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Auto-Absent</span>
+                                        {% elif item.status == 'checked_out' %}
+                                            <span class="badge bg-info"><i class="bi bi-box-arrow-right"></i> Auto Checked-Out</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary"><i class="bi bi-question-circle"></i> Unknown</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if item.tracking %}
+                                            <span class="badge {% if item.tracking.not_present_count >= 2 %}bg-danger{% elif item.tracking.not_present_count >= 1 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                                                {{ item.tracking.not_present_count }}/3
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">0/3</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if item.tracking and item.tracking.last_seen %}
+                                            {{ item.tracking.last_seen|date:"g:i A" }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if item.attendance and item.attendance.check_in %}
+                                            {{ item.attendance.check_in|date:"g:i A" }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if item.attendance and item.attendance.check_out %}
+                                            {{ item.attendance.check_out|date:"g:i A" }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if item.attendance and item.attendance.work_hours %}
+                                            {{ item.attendance.work_hours|floatformat:1 }}h
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'attendance:attendance_record_employee' item.employee.id %}" class="btn btn-sm btn-outline-primary" title="View History">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="9" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox fs-1"></i>
+                                        <p class="mt-2">No employees with enrolled faces. <a href="{% url 'enrollment:employee_list' %}">Enroll employees</a> first.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Individual Employee Working Hours -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-people-fill"></i> Individual Employee Working Hours</h5>
+                    <small class="text-white-50">Set custom hours per employee (overrides global settings)</small>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle"></i> Enable "Custom" to set individual working hours for specific employees. When disabled, global settings are used.
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-hover employee-hours-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Employee</th>
+                                    <th style="width: 80px;">Custom</th>
+                                    <th style="width: 120px;">Check-In Time</th>
+                                    <th style="width: 120px;">Check-Out Time</th>
+                                    <th style="width: 100px;">Full Day (hrs)</th>
+                                    <th style="width: 100px;">Half Day (hrs)</th>
+                                    <th style="width: 100px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for employee in employees %}
+                                <tr class="employee-row {% if employee.use_custom_hours %}custom-enabled{% endif %}" data-employee-id="{{ employee.id }}">
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if employee.photo %}
+                                                <img src="{{ employee.photo.url }}" class="rounded-circle me-2" style="width: 35px; height: 35px; object-fit: cover;">
+                                            {% else %}
+                                                <div class="rounded-circle bg-secondary me-2 d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;">
+                                                    <i class="bi bi-person-fill text-white"></i>
+                                                </div>
+                                            {% endif %}
+                                            <div>
+                                                <strong>{{ employee.full_name }}</strong><br>
+                                                <small class="text-muted">{{ employee.employee_id }} - {{ employee.department.name|default:"-" }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input custom-toggle" type="checkbox" 
+                                                   {% if employee.use_custom_hours %}checked{% endif %}
+                                                   onchange="toggleCustomHours(this, {{ employee.id }})">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="time" class="form-control form-control-sm check-in-time" 
+                                               value="{{ employee.custom_check_in_time|default:settings.standard_check_in_time }}"
+                                               {% if not employee.use_custom_hours %}disabled{% endif %}>
+                                    </td>
+                                    <td>
+                                        <input type="time" class="form-control form-control-sm check-out-time" 
+                                               value="{{ employee.custom_check_out_time|default:settings.standard_check_out_time }}"
+                                               {% if not employee.use_custom_hours %}disabled{% endif %}>
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm full-day-hours" 
+                                               step="0.5" min="1" max="12"
+                                               value="{{ employee.custom_full_day_hours|default:settings.full_day_hours }}"
+                                               {% if not employee.use_custom_hours %}disabled{% endif %}>
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm half-day-hours" 
+                                               step="0.5" min="1" max="8"
+                                               value="{{ employee.custom_half_day_hours|default:settings.half_day_hours }}"
+                                               {% if not employee.use_custom_hours %}disabled{% endif %}>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-primary save-btn" 
+                                                onclick="saveEmployeeHours({{ employee.id }})"
+                                                {% if not employee.use_custom_hours %}disabled{% endif %}>
+                                            <i class="bi bi-check-lg"></i> Save
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox fs-1"></i>
+                                        <p class="mt-2">No employees found.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity and Quick Stats -->
+    <div class="row mt-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h4><i class="bi bi-list-check"></i> Today's Check-ins</h4>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    <div class="input-group mb-3">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" id="searchEmployee" class="form-control" placeholder="Search employee...">
+                    </div>
+                    <div id="attendanceList">
+                        {% for record in recent_checkins %}
+                        <div class="recent-checkin d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center">
+                                {% if record.employee.photo %}
+                                    <img src="{{ record.employee.photo.url }}" class="rounded-circle employee-photo me-3" alt="{{ record.employee.full_name }}">
+                                {% else %}
+                                    <div class="rounded-circle employee-photo me-3 bg-secondary d-flex align-items-center justify-content-center">
+                                        <i class="bi bi-person-fill text-white fs-3"></i>
+                                    </div>
+                                {% endif %}
+                                <div>
+                                    <h6 class="mb-0">{{ record.employee.full_name }}</h6>
+                                    <small class="text-muted">{{ record.employee.department.name }} • {{ record.employee.employee_id }}</small>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                {% if record.status == 'PRESENT' %}
+                                    <span class="status-badge bg-success text-white"><i class="bi bi-check-circle"></i> On Time</span>
+                                {% elif record.status == 'LATE' %}
+                                    <span class="status-badge bg-warning text-white"><i class="bi bi-clock"></i> Late</span>
+                                {% elif record.status == 'ABSENT' %}
+                                    <span class="status-badge bg-danger text-white"><i class="bi bi-x-circle"></i> Absent</span>
+                                {% endif %}
+                                <div class="mt-1">
+                                    <small class="text-muted">
+                                        <i class="bi bi-box-arrow-in-right"></i> {{ record.check_in|date:"g:i A" }}
+                                        {% if record.check_out %}
+                                            <i class="bi bi-box-arrow-right ms-2"></i> {{ record.check_out|date:"g:i A" }}
+                                        {% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="text-center text-muted p-5">
+                            <i class="bi bi-inbox fs-1"></i>
+                            <p class="mt-2">No check-ins recorded today</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5><i class="bi bi-bar-chart-fill"></i> Today's Overview</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <canvas id="attendanceChart" height="200"></canvas>
+                    </div>
+                    
+                    <div class="list-group list-group-flush">
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-circle-fill text-success"></i> Present</span>
+                            <span class="badge bg-success rounded-pill">{{ present_count }}</span>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-circle-fill text-warning"></i> Late</span>
+                            <span class="badge bg-warning rounded-pill">{{ late_count }}</span>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-circle-fill text-danger"></i> Absent</span>
+                            <span class="badge bg-danger rounded-pill">{{ absent_count }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mt-3">
+                <div class="card-header bg-white">
+                    <h5><i class="bi bi-lightning"></i> Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'recognition:live_recognition' %}" class="btn btn-success">
+                            <i class="bi bi-camera-video"></i> Start Live Recognition
+                        </a>
+                        <a href="{% url 'attendance:attendance_record_date' %}" class="btn btn-outline-primary">
+                            <i class="bi bi-calendar-date"></i> View by Date
+                        </a>
+                        <a href="{% url 'reports:attendance_report' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-file-earmark-bar-graph"></i> Reports
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Live time display
+    function updateTime() {
+        const now = new Date();
+        document.getElementById('liveTime').textContent = now.toLocaleTimeString();
+    }
+    setInterval(updateTime, 1000);
+    updateTime();
+    
+    // Attendance chart
+    const ctx = document.getElementById('attendanceChart').getContext('2d');
+    const attendanceChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Present', 'Late', 'Absent'],
+            datasets: [{
+                data: [{{ present_count }}, {{ late_count }}, {{ absent_count }}],
+                backgroundColor: ['#48bb78', '#ed8936', '#f56565'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+    
+    // Search functionality
+    document.getElementById('searchEmployee').addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase();
+        const items = document.querySelectorAll('.recent-checkin');
+        
+        items.forEach(item => {
+            const text = item.textContent.toLowerCase();
+            if (text.includes(searchTerm)) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+    
+    // Refresh data
+    function refreshData() {
+        location.reload();
+    }
+    
+    // Auto-refresh every 60 seconds
+    setInterval(refreshData, 60000);
+    
+    // Toggle custom hours for employee
+    function toggleCustomHours(checkbox, employeeId) {
+        const row = checkbox.closest('.employee-row');
+        const inputs = row.querySelectorAll('input[type="time"], input[type="number"]');
+        const saveBtn = row.querySelector('.save-btn');
+        
+        if (checkbox.checked) {
+            row.classList.add('custom-enabled');
+            inputs.forEach(input => input.disabled = false);
+            saveBtn.disabled = false;
+        } else {
+            row.classList.remove('custom-enabled');
+            inputs.forEach(input => input.disabled = true);
+            saveBtn.disabled = true;
+            
+            // Save with custom disabled
+            saveEmployeeHours(employeeId, false);
+        }
+    }
+    
+    // Save employee hours
+    function saveEmployeeHours(employeeId, useCustom = true) {
+        const row = document.querySelector(`.employee-row[data-employee-id="${employeeId}"]`);
+        const checkInTime = row.querySelector('.check-in-time').value;
+        const checkOutTime = row.querySelector('.check-out-time').value;
+        const fullDayHours = row.querySelector('.full-day-hours').value;
+        const halfDayHours = row.querySelector('.half-day-hours').value;
+        
+        const saveBtn = row.querySelector('.save-btn');
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        
+        fetch('{% url "recognition:update_employee_hours" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                employee_id: employeeId,
+                use_custom_hours: useCustom,
+                check_in_time: checkInTime,
+                check_out_time: checkOutTime,
+                full_day_hours: fullDayHours,
+                half_day_hours: halfDayHours
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                saveBtn.innerHTML = '<i class="bi bi-check-lg"></i> Saved';
+                saveBtn.classList.remove('btn-primary');
+                saveBtn.classList.add('btn-success');
+                setTimeout(() => {
+                    saveBtn.innerHTML = '<i class="bi bi-check-lg"></i> Save';
+                    saveBtn.classList.remove('btn-success');
+                    saveBtn.classList.add('btn-primary');
+                    if (useCustom) saveBtn.disabled = false;
+                }, 2000);
+            } else {
+                alert('Error: ' + data.error);
+                saveBtn.innerHTML = '<i class="bi bi-check-lg"></i> Save';
+                if (useCustom) saveBtn.disabled = false;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to save settings');
+            saveBtn.innerHTML = '<i class="bi bi-check-lg"></i> Save';
+            if (useCustom) saveBtn.disabled = false;
+        });
+    }
+</script>
+{% endblock %}

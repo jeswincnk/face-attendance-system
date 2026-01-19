@@ -1,0 +1,175 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Employee Summary Report{% endblock %}
+
+{% block extra_css %}
+<style>
+    .summary-card {
+        border-radius: 10px;
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 15px;
+        transition: all 0.3s;
+    }
+    .summary-card:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    .employee-avatar {
+        width: 60px;
+        height: 60px;
+        object-fit: cover;
+    }
+    .stat-badge {
+        font-size: 1.1rem;
+        padding: 8px 15px;
+    }
+    .progress-thin {
+        height: 8px;
+    }
+    .attendance-rate-excellent {
+        color: #48bb78;
+    }
+    .attendance-rate-good {
+        color: #ed8936;
+    }
+    .attendance-rate-poor {
+        color: #f56565;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-person-lines-fill"></i> Employee Attendance Summary</h2>
+        <div>
+            <form method="get" class="d-inline-flex gap-2">
+                <input type="month" name="month" class="form-control" value="{{ selected_month }}" required>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search"></i> Filter
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Period: {{ start_date|date:"F j, Y" }} to {{ end_date|date:"F j, Y" }}</h5>
+        </div>
+        <div class="card-body">
+            <div class="row text-center">
+                <div class="col-md-3">
+                    <h3 class="text-primary">{{ summary_data|length }}</h3>
+                    <p class="text-muted">Total Employees</p>
+                </div>
+                <div class="col-md-3">
+                    <h3 class="text-success">
+                        {% widthratio summary_data|length summary_data|length 100 %}%
+                    </h3>
+                    <p class="text-muted">Average Attendance</p>
+                </div>
+                <div class="col-md-3">
+                    <h3 class="text-info">
+                        {{ start_date|date:"j" }} - {{ end_date|date:"j" }}
+                    </h3>
+                    <p class="text-muted">Working Days</p>
+                </div>
+                <div class="col-md-3">
+                    <div class="btn-group">
+                        <button class="btn btn-success" onclick="exportData('csv')">
+                            <i class="bi bi-file-earmark-excel"></i> CSV
+                        </button>
+                        <button class="btn btn-info" onclick="exportData('excel')">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> Excel
+                        </button>
+                        <button class="btn btn-danger" onclick="exportData('pdf')">
+                            <i class="bi bi-file-earmark-pdf"></i> PDF
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        {% for data in summary_data %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card summary-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        {% if data.employee.photo %}
+                            <img src="{{ data.employee.photo.url }}" class="rounded-circle employee-avatar me-3" alt="{{ data.employee.full_name }}">
+                        {% else %}
+                            <div class="rounded-circle employee-avatar me-3 bg-secondary d-flex align-items-center justify-content-center">
+                                <i class="bi bi-person-fill text-white fs-2"></i>
+                            </div>
+                        {% endif %}
+                        <div>
+                            <h5 class="mb-0">{{ data.employee.full_name }}</h5>
+                            <small class="text-muted">{{ data.employee.employee_id }} • {{ data.employee.department.name }}</small>
+                        </div>
+                    </div>
+
+                    <div class="row text-center mb-3">
+                        <div class="col-4">
+                            <span class="badge bg-success stat-badge">{{ data.present_days }}</span>
+                            <div><small class="text-muted">Present</small></div>
+                        </div>
+                        <div class="col-4">
+                            <span class="badge bg-warning stat-badge">{{ data.late_days }}</span>
+                            <div><small class="text-muted">Late</small></div>
+                        </div>
+                        <div class="col-4">
+                            <span class="badge bg-danger stat-badge">{{ data.absent_days }}</span>
+                            <div><small class="text-muted">Absent</small></div>
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span><i class="bi bi-bar-chart-fill"></i> Attendance Rate</span>
+                            <span class="fw-bold {% if data.attendance_rate >= 90 %}attendance-rate-excellent{% elif data.attendance_rate >= 75 %}attendance-rate-good{% else %}attendance-rate-poor{% endif %}">
+                                {{ data.attendance_rate }}%
+                            </span>
+                        </div>
+                        <div class="progress progress-thin">
+                            <div class="progress-bar {% if data.attendance_rate >= 90 %}bg-success{% elif data.attendance_rate >= 75 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                 style="width: {{ data.attendance_rate }}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+                        <div>
+                            <i class="bi bi-hourglass-split text-primary"></i>
+                            <span class="ms-1">Avg Hours: <strong>{{ data.avg_work_hours }}h</strong></span>
+                        </div>
+                        <a href="{% url 'attendance:attendance_record_employee' data.employee.id %}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i> Details
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                <i class="bi bi-info-circle fs-1"></i>
+                <p class="mt-2">No employee data available for the selected period</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function exportData(format) {
+        const month = '{{ selected_month }}';
+        window.location.href = `?month=${month}&export=${format}`;
+    }
+</script>
+{% endblock %}

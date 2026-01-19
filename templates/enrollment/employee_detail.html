@@ -1,0 +1,340 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ employee.full_name }} - Employee Details{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-person-badge"></i> Employee Details</h2>
+        <div>
+            <a href="{% url 'enrollment:employee_update' employee.pk %}" class="btn btn-warning">
+                <i class="bi bi-pencil"></i> Edit
+            </a>
+            <a href="{% url 'enrollment:employee_list' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    {% if employee.photo %}
+                        <img src="{{ employee.photo.url }}" alt="{{ employee.full_name }}" 
+                             class="img-fluid rounded-circle mb-3" style="max-width: 200px;">
+                    {% else %}
+                        <i class="bi bi-person-circle" style="font-size: 150px; color: #ccc;"></i>
+                    {% endif %}
+                    <h4>{{ employee.full_name }}</h4>
+                    <p class="text-muted">{{ employee.employee_id }}</p>
+                    <span class="badge {% if employee.is_active %}bg-success{% else %}bg-danger{% endif %} mb-3">
+                        {% if employee.is_active %}Active{% else %}Inactive{% endif %}
+                    </span>
+                    
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'enrollment:face_enrollment' employee.pk %}" class="btn btn-primary">
+                            <i class="bi bi-camera-fill"></i> Enroll Face
+                        </a>
+                        <a href="{% url 'attendance:attendance_record_employee' employee.pk %}" class="btn btn-info">
+                            <i class="bi bi-calendar-check"></i> View Full Attendance
+                        </a>
+                        {% if not employee.is_active %}
+                            <form method="post" action="{% url 'enrollment:employee_toggle_status' employee.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-success w-100">
+                                    <i class="bi bi-check-circle"></i> Activate
+                                </button>
+                            </form>
+                        {% else %}
+                            <form method="post" action="{% url 'enrollment:employee_toggle_status' employee.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-warning w-100">
+                                    <i class="bi bi-x-circle"></i> Deactivate
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Today's Status -->
+            <div class="card mt-3">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-calendar-day"></i> Today's Status</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3 text-center">
+                        <small class="text-muted">Presence Status</small><br>
+                        {% if today_tracking %}
+                            {% if today_tracking.auto_marked_absent %}
+                                <span class="badge bg-danger fs-6"><i class="bi bi-x-circle"></i> Auto-Absent</span>
+                            {% elif today_tracking.auto_checked_out %}
+                                <span class="badge bg-info fs-6"><i class="bi bi-box-arrow-right"></i> Checked Out</span>
+                            {% elif today_tracking.not_present_count > 0 %}
+                                <span class="badge bg-warning text-dark fs-6"><i class="bi bi-exclamation-triangle"></i> Warning ({{ today_tracking.not_present_count }}/3)</span>
+                            {% elif today_tracking.scan_count > 0 %}
+                                <span class="badge bg-success fs-6"><i class="bi bi-check-circle"></i> Present</span>
+                            {% else %}
+                                <span class="badge bg-secondary fs-6">Not Scanned</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge bg-secondary fs-6">No Data</span>
+                        {% endif %}
+                    </div>
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <small class="text-muted">Check-in</small><br>
+                            {% if today_attendance and today_attendance.check_in %}
+                                <strong class="text-success">{{ today_attendance.check_in|date:"g:i A" }}</strong>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">Check-out</small><br>
+                            {% if today_attendance and today_attendance.check_out %}
+                                <strong class="text-info">{{ today_attendance.check_out|date:"g:i A" }}</strong>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <!-- 30-Day Stats -->
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <div class="card bg-success text-white text-center">
+                        <div class="card-body py-2">
+                            <h4 class="mb-0">{{ present_count }}</h4>
+                            <small>Present</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-dark text-center">
+                        <div class="card-body py-2">
+                            <h4 class="mb-0">{{ late_count }}</h4>
+                            <small>Late</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-danger text-white text-center">
+                        <div class="card-body py-2">
+                            <h4 class="mb-0">{{ absent_count }}</h4>
+                            <small>Absent</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white text-center">
+                        <div class="card-body py-2">
+                            <h4 class="mb-0">{{ avg_work_hours }}h</h4>
+                            <small>Avg Hours</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Auto-Tracking Stats -->
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="card border-danger">
+                        <div class="card-body d-flex align-items-center py-2">
+                            <i class="bi bi-x-circle-fill text-danger me-3 fs-4"></i>
+                            <div>
+                                <h5 class="mb-0">{{ auto_absent_count }}</h5>
+                                <small class="text-muted">Auto-Absent (30 days)</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-info">
+                        <div class="card-body d-flex align-items-center py-2">
+                            <i class="bi bi-box-arrow-right text-info me-3 fs-4"></i>
+                            <div>
+                                <h5 class="mb-0">{{ auto_checkout_count }}</h5>
+                                <small class="text-muted">Auto-Checkout (30 days)</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5><i class="bi bi-info-circle"></i> Personal Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Employee ID:</strong>
+                            <p>{{ employee.employee_id }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Department:</strong>
+                            <p>{{ employee.department.name|default:"Not Assigned" }}</p>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Email:</strong>
+                            <p><a href="mailto:{{ employee.email }}">{{ employee.email }}</a></p>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Phone:</strong>
+                            <p>{{ employee.phone|default:"-" }}</p>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Gender:</strong>
+                            <p>{{ employee.get_gender_display }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Date of Birth:</strong>
+                            <p>{{ employee.date_of_birth|date:"M d, Y"|default:"-" }}</p>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Date of Joining:</strong>
+                            <p>{{ employee.date_of_joining|date:"M d, Y" }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Status:</strong>
+                            <p>
+                                <span class="badge {% if employee.is_active %}bg-success{% else %}bg-danger{% endif %}">
+                                    {% if employee.is_active %}Active{% else %}Inactive{% endif %}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5><i class="bi bi-camera-fill"></i> Face Encodings ({{ face_encodings.count }})</h5>
+                </div>
+                <div class="card-body">
+                    {% if face_encodings %}
+                        <div class="row">
+                            {% for encoding in face_encodings %}
+                                <div class="col-md-4 mb-3">
+                                    <div class="card">
+                                        <img src="{{ encoding.image.url }}" class="card-img-top" alt="Face encoding">
+                                        <div class="card-body p-2 text-center">
+                                            {% if encoding.is_primary %}
+                                                <span class="badge bg-primary">Primary</span>
+                                            {% endif %}
+                                            <small class="text-muted d-block">{{ encoding.created_at|date:"M d, Y" }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-camera-video-off" style="font-size: 48px;"></i>
+                            <p class="mt-2">No face encodings enrolled yet</p>
+                            <a href="{% url 'enrollment:face_enrollment' employee.pk %}" class="btn btn-primary">
+                                <i class="bi bi-camera-fill"></i> Enroll Now
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-clock-history"></i> Recent Attendance</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_attendance %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Check In</th>
+                                        <th>Check Out</th>
+                                        <th>Status</th>
+                                        <th>Hours</th>
+                                        <th>Method</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for record in recent_attendance %}
+                                        <tr>
+                                            <td>{{ record.date|date:"M d" }}</td>
+                                            <td>{{ record.check_in|date:"g:i A"|default:"-" }}</td>
+                                            <td>
+                                                {% if record.check_out %}
+                                                    {{ record.check_out|date:"g:i A" }}
+                                                {% else %}
+                                                    <span class="badge bg-warning">Active</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if record.status == 'PRESENT' %}
+                                                    <span class="badge bg-success">Present</span>
+                                                {% elif record.status == 'LATE' %}
+                                                    <span class="badge bg-warning text-dark">Late</span>
+                                                {% elif record.status == 'ABSENT' %}
+                                                    <span class="badge bg-danger">Absent</span>
+                                                {% elif record.status == 'HALF_DAY' %}
+                                                    <span class="badge bg-info">Half Day</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if record.work_hours %}
+                                                    {{ record.work_hours|floatformat:1 }}h
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if record.checkin_method == 'ADMIN' %}
+                                                    <span class="badge bg-dark">Admin</span>
+                                                {% elif record.checkin_method == 'SELF' %}
+                                                    <span class="badge bg-primary">Self</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">-</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <a href="{% url 'attendance:attendance_record_employee' employee.pk %}" class="btn btn-sm btn-outline-primary">
+                            View All Records <i class="bi bi-arrow-right"></i>
+                        </a>
+                    {% else %}
+                        <div class="text-center text-muted py-3">
+                            <i class="bi bi-calendar-x"></i> No attendance records found
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

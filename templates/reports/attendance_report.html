@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Attendance Reports{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2><i class="bi bi-file-earmark-text"></i> Attendance Reports</h2>
+    
+    <div class="card mt-4">
+        <div class="card-header">
+            <h4>Generate Report</h4>
+        </div>
+        <div class="card-body">
+            <form method="get">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label for="employee" class="form-label">Employee (Optional)</label>
+                        <select name="employee" class="form-select" id="employee">
+                            <option value="">All Employees</option>
+                            {% for emp in employees %}
+                                <option value="{{ emp.id }}" {% if request.GET.employee == emp.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ emp.full_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="start_date" class="form-label">Start Date</label>
+                        <input type="date" name="start_date" id="start_date" 
+                               class="form-control" value="{{ request.GET.start_date }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="end_date" class="form-label">End Date</label>
+                        <input type="date" name="end_date" id="end_date" 
+                               class="form-control" value="{{ request.GET.end_date }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-search"></i> Generate
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if records %}
+    <div class="card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4>Report Results ({{ records|length }} records)</h4>
+            <div>
+                <a href="{% url 'reports:export_report' %}?format=csv&{{ request.GET.urlencode }}" class="btn btn-sm btn-success">
+                    <i class="bi bi-file-earmark-excel"></i> Export CSV
+                </a>
+                <a href="{% url 'reports:export_report' %}?format=excel&{{ request.GET.urlencode }}" class="btn btn-sm btn-info">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Export Excel
+                </a>
+                <a href="{% url 'reports:export_report' %}?format=pdf&{{ request.GET.urlencode }}" class="btn btn-sm btn-danger">
+                    <i class="bi bi-file-earmark-pdf"></i> Export PDF
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Employee</th>
+                            <th>Department</th>
+                            <th>Check In</th>
+                            <th>Check Out</th>
+                            <th>Hours</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in records %}
+                        <tr>
+                            <td>{{ record.date|date:"M d, Y" }}</td>
+                            <td>{{ record.employee.full_name }}</td>
+                            <td>{{ record.employee.department.name }}</td>
+                            <td>{{ record.check_in|date:"g:i A"|default:"-" }}</td>
+                            <td>
+                                {% if record.check_out %}
+                                    {{ record.check_out|date:"g:i A" }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.work_hours %}
+                                    {{ record.work_hours|floatformat:2 }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.status == 'PRESENT' %}
+                                    <span class="badge bg-success">Present</span>
+                                {% elif record.status == 'LATE' %}
+                                    <span class="badge bg-warning">Late</span>
+                                {% elif record.status == 'ABSENT' %}
+                                    <span class="badge bg-danger">Absent</span>
+                                {% elif record.status == 'HALF_DAY' %}
+                                    <span class="badge bg-info">Half Day</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

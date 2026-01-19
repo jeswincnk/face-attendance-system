@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block title %}Employee List{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <h1><i class="bi bi-people"></i> Employee Management</h1>
+            <p class="text-muted">{{ active_count }} active out of {{ total_count }} total employees</p>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'enrollment:employee_create' %}" class="btn btn-primary">
+                <i class="bi bi-person-plus"></i> Add New Employee
+            </a>
+            <a href="{% url 'enrollment:department_list' %}" class="btn btn-secondary">
+                <i class="bi bi-building"></i> Manage Departments
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Employee ID</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Department</th>
+                            <th>Status</th>
+                            <th>Joined</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for employee in employees %}
+                        <tr>
+                            <td><strong>{{ employee.employee_id }}</strong></td>
+                            <td>
+                                {% if employee.photo %}
+                                <img src="{{ employee.photo.url }}" alt="{{ employee.full_name }}" 
+                                     class="rounded-circle me-2" style="width: 32px; height: 32px; object-fit: cover;">
+                                {% endif %}
+                                {{ employee.full_name }}
+                            </td>
+                            <td>{{ employee.email }}</td>
+                            <td>{{ employee.department.name|default:"—" }}</td>
+                            <td>
+                                {% if employee.is_active %}
+                                <span class="badge bg-success">Active</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ employee.date_of_joining|date:"M d, Y" }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'enrollment:employee_detail' employee.pk %}" class="btn btn-info">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{% url 'enrollment:employee_update' employee.pk %}" class="btn btn-warning">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a href="{% url 'enrollment:face_enrollment' employee.pk %}" class="btn btn-primary">
+                                        <i class="bi bi-camera"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                <i class="bi bi-inbox display-1"></i>
+                                <p class="mt-2">No employees found. <a href="{% url 'enrollment:employee_create' %}">Add your first employee</a></p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

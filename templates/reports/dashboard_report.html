@@ -1,0 +1,293 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Attendance Dashboard{% endblock %}
+
+{% block content %}
+<style>
+    .stat-card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    }
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+    }
+    .period-btn.active {
+        background-color: #0d6efd !important;
+        color: white !important;
+    }
+</style>
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-graph-up"></i> Attendance Dashboard</h2>
+            <p class="text-muted mb-0">Comprehensive attendance analytics and reports</p>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <a href="{% url 'reports:attendance_report' %}" class="btn btn-success">
+                <i class="bi bi-file-earmark-text"></i> Detailed Report
+            </a>
+            <a href="{% url 'reports:employee_summary' %}" class="btn btn-info text-white">
+                <i class="bi bi-person-lines-fill"></i> Employee Summary
+            </a>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-primary period-btn {% if period == 'today' %}active{% endif %}" onclick="changePeriod('today')">Today</button>
+                <button type="button" class="btn btn-outline-primary period-btn {% if period == 'week' %}active{% endif %}" onclick="changePeriod('week')">This Week</button>
+                <button type="button" class="btn btn-outline-primary period-btn {% if period == 'month' %}active{% endif %}" onclick="changePeriod('month')">This Month</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card bg-success text-white">
+                <div class="card-body text-center">
+                    <i class="bi bi-person-check" style="font-size: 2rem;"></i>
+                    <div class="stat-number">{{ stats.present }}</div>
+                    <div>Present</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-danger text-white">
+                <div class="card-body text-center">
+                    <i class="bi bi-person-x" style="font-size: 2rem;"></i>
+                    <div class="stat-number">{{ stats.absent }}</div>
+                    <div>Absent</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <i class="bi bi-clock-history" style="font-size: 2rem;"></i>
+                    <div class="stat-number">{{ stats.late }}</div>
+                    <div>Late</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-info text-white">
+                <div class="card-body text-center">
+                    <i class="bi bi-percent" style="font-size: 2rem;"></i>
+                    <div class="stat-number">{{ stats.attendance_rate }}%</div>
+                    <div>Attendance Rate</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Attendance Chart -->
+        <div class="col-md-8">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Attendance Trend</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="attendanceChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Department Breakdown -->
+        <div class="col-md-4">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="bi bi-pie-chart"></i> By Department</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="departmentChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Employee Summary Table -->
+        <div class="col-md-6">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-dark text-white d-flex justify-content-between">
+                    <h5 class="mb-0"><i class="bi bi-people"></i> Employee Summary</h5>
+                    <a href="{% url 'reports:attendance_report' %}?period={{ period }}" class="btn btn-sm btn-light">
+                        View Full Report
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Employee</th>
+                                    <th class="text-center">Present</th>
+                                    <th class="text-center">Absent</th>
+                                    <th class="text-center">Late</th>
+                                    <th class="text-center">Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for emp in employee_stats %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ emp.name }}</strong>
+                                        <br><small class="text-muted">{{ emp.department }}</small>
+                                    </td>
+                                    <td class="text-center"><span class="badge bg-success">{{ emp.present }}</span></td>
+                                    <td class="text-center"><span class="badge bg-danger">{{ emp.absent }}</span></td>
+                                    <td class="text-center"><span class="badge bg-warning text-dark">{{ emp.late }}</span></td>
+                                    <td class="text-center">
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar bg-success" style="width: {{ emp.rate }}%;">{{ emp.rate }}%</div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">No data available</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="col-md-6">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-clock"></i> Recent Check-ins</h5>
+                </div>
+                <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                    <ul class="list-group list-group-flush">
+                        {% for record in recent_records %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ record.employee.full_name }}</strong>
+                                <br><small class="text-muted">{{ record.check_in|date:"M d, g:i A" }}</small>
+                            </div>
+                            <span class="badge bg-{% if record.status == 'PRESENT' %}success{% elif record.status == 'LATE' %}warning{% else %}danger{% endif %}">
+                                {{ record.status }}
+                            </span>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item text-center text-muted py-4">No recent check-ins</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Options -->
+    <div class="card shadow">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0"><i class="bi bi-download"></i> Export Reports</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <a href="{% url 'reports:export_report' %}?format=csv&period={{ period }}" class="btn btn-success btn-lg w-100">
+                        <i class="bi bi-file-earmark-excel"></i> Export CSV
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a href="{% url 'reports:export_report' %}?format=excel&period={{ period }}" class="btn btn-info btn-lg w-100">
+                        <i class="bi bi-file-earmark-spreadsheet"></i> Export Excel
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a href="{% url 'reports:export_report' %}?format=pdf&period={{ period }}" class="btn btn-danger btn-lg w-100">
+                        <i class="bi bi-file-earmark-pdf"></i> Export PDF
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Attendance Trend Chart
+    const attendanceCtx = document.getElementById('attendanceChart').getContext('2d');
+    new Chart(attendanceCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ chart_labels|safe }},
+            datasets: [
+                {
+                    label: 'Present',
+                    data: {{ chart_present|safe }},
+                    backgroundColor: 'rgba(40, 167, 69, 0.8)',
+                    borderColor: 'rgb(40, 167, 69)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Late',
+                    data: {{ chart_late|safe }},
+                    backgroundColor: 'rgba(255, 193, 7, 0.8)',
+                    borderColor: 'rgb(255, 193, 7)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Absent',
+                    data: {{ chart_absent|safe }},
+                    backgroundColor: 'rgba(220, 53, 69, 0.8)',
+                    borderColor: 'rgb(220, 53, 69)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1 }
+                }
+            },
+            plugins: {
+                legend: { position: 'top' }
+            }
+        }
+    });
+
+    // Department Pie Chart
+    const deptCtx = document.getElementById('departmentChart').getContext('2d');
+    new Chart(deptCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ dept_labels|safe }},
+            datasets: [{
+                data: {{ dept_data|safe }},
+                backgroundColor: [
+                    'rgba(54, 162, 235, 0.8)',
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(255, 206, 86, 0.8)',
+                    'rgba(75, 192, 192, 0.8)',
+                    'rgba(153, 102, 255, 0.8)',
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+
+    function changePeriod(period) {
+        window.location.href = '?period=' + period;
+    }
+</script>
+{% endblock %}

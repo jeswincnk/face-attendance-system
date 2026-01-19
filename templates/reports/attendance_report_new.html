@@ -1,0 +1,335 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Attendance Reports{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-card {
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .export-btn {
+        transition: all 0.3s;
+    }
+    .export-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .stat-box {
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        color: white;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .chart-container {
+        position: relative;
+        height: 300px;
+        margin-bottom: 30px;
+    }
+    .record-table {
+        font-size: 0.9rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h2><i class="bi bi-file-earmark-text"></i> Attendance Reports & Analytics</h2>
+    
+    <div class="card filter-card mt-4">
+        <div class="card-header bg-primary text-white">
+            <h4><i class="bi bi-funnel"></i> Generate Report</h4>
+        </div>
+        <div class="card-body">
+            <form method="get" id="filterForm">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label for="employee" class="form-label">Employee</label>
+                        <select name="employee" class="form-select" id="employee">
+                            <option value="">All Employees</option>
+                            {% for emp in employees %}
+                                <option value="{{ emp.id }}" {% if selected_employee == emp.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ emp.employee_id }} - {{ emp.full_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="department" class="form-label">Department</label>
+                        <select name="department" class="form-select" id="department">
+                            <option value="">All Departments</option>
+                            {% for dept in departments %}
+                                <option value="{{ dept.id }}" {% if selected_department == dept.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ dept.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="start_date" class="form-label">Start Date</label>
+                        <input type="date" name="start_date" id="start_date" 
+                               class="form-control" value="{{ start_date|date:'Y-m-d' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="end_date" class="form-label">End Date</label>
+                        <input type="date" name="end_date" id="end_date" 
+                               class="form-control" value="{{ end_date|date:'Y-m-d' }}">
+                    </div>
+                    <div class="col-md-1">
+                        <label for="status" class="form-label">Status</label>
+                        <select name="status" class="form-select" id="status">
+                            <option value="">All</option>
+                            <option value="PRESENT">Present</option>
+                            <option value="LATE">Late</option>
+                            <option value="ABSENT">Absent</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-search"></i> Generate
+                        </button>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setDateRange('today')">Today</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setDateRange('week')">This Week</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setDateRange('month')">This Month</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setDateRange('year')">This Year</button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if records %}
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="stat-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <h3>{{ total_days }}</h3>
+                <p class="mb-0">Total Days</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-box" style="background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);">
+                <h3>{{ present_count }}</h3>
+                <p class="mb-0">Present</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-box" style="background: linear-gradient(135deg, #f56565 0%, #c53030 100%);">
+                <h3>{{ absent_count }}</h3>
+                <p class="mb-0">Absent</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-box" style="background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);">
+                <h3>{{ late_count }}</h3>
+                <p class="mb-0">Late Arrivals</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-pie-chart"></i> Attendance Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="attendancePieChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-bar-chart"></i> Status Breakdown</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="attendanceBarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4><i class="bi bi-table"></i> Report Results ({{ records|length }} records)</h4>
+            <div>
+                <a href="?{{ request.GET.urlencode }}&export=csv" class="btn btn-sm btn-success export-btn">
+                    <i class="bi bi-file-earmark-excel"></i> CSV
+                </a>
+                <a href="?{{ request.GET.urlencode }}&export=excel" class="btn btn-sm btn-info export-btn">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Excel
+                </a>
+                <a href="?{{ request.GET.urlencode }}&export=pdf" class="btn btn-sm btn-danger export-btn">
+                    <i class="bi bi-file-earmark-pdf"></i> PDF
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover record-table">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Date</th>
+                            <th>Employee</th>
+                            <th>Department</th>
+                            <th>Check In</th>
+                            <th>Check Out</th>
+                            <th>Hours</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in records %}
+                        <tr>
+                            <td>{{ record.date|date:"M d, Y" }}</td>
+                            <td>
+                                <strong>{{ record.employee.full_name }}</strong><br>
+                                <small class="text-muted">{{ record.employee.employee_id }}</small>
+                            </td>
+                            <td>{{ record.employee.department.name }}</td>
+                            <td>
+                                {% if record.check_in %}
+                                    <i class="bi bi-box-arrow-in-right text-success"></i> {{ record.check_in|date:"g:i A" }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.check_out %}
+                                    <i class="bi bi-box-arrow-right text-danger"></i> {{ record.check_out|date:"g:i A" }}
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">Active</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.work_hours %}
+                                    <span class="badge bg-primary">{{ record.work_hours|floatformat:1 }}h</span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.status == 'PRESENT' %}
+                                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Present</span>
+                                {% elif record.status == 'LATE' %}
+                                    <span class="badge bg-warning"><i class="bi bi-clock"></i> Late</span>
+                                {% elif record.status == 'ABSENT' %}
+                                    <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Absent</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info mt-4">
+        <i class="bi bi-info-circle"></i> Select date range and click "Generate" to view attendance reports.
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Date range presets
+    function setDateRange(range) {
+        const today = new Date();
+        let startDate, endDate = today;
+        
+        switch(range) {
+            case 'today':
+                startDate = today;
+                break;
+            case 'week':
+                startDate = new Date(today.setDate(today.getDate() - 7));
+                break;
+            case 'month':
+                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                break;
+            case 'year':
+                startDate = new Date(today.getFullYear(), 0, 1);
+                break;
+        }
+        
+        document.getElementById('start_date').value = startDate.toISOString().split('T')[0];
+        document.getElementById('end_date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('filterForm').submit();
+    }
+    
+    {% if records %}
+    // Pie Chart
+    const pieCtx = document.getElementById('attendancePieChart').getContext('2d');
+    new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+            labels: ['Present', 'Late', 'Absent'],
+            datasets: [{
+                data: [{{ present_count }}, {{ late_count }}, {{ absent_count }}],
+                backgroundColor: ['#48bb78', '#ed8936', '#f56565'],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+    
+    // Bar Chart
+    const barCtx = document.getElementById('attendanceBarChart').getContext('2d');
+    new Chart(barCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Present', 'Late', 'Absent'],
+            datasets: [{
+                label: 'Count',
+                data: [{{ present_count }}, {{ late_count }}, {{ absent_count }}],
+                backgroundColor: ['#48bb78', '#ed8936', '#f56565'],
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+    {% endif %}
+</script>
+{% endblock %}

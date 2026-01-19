@@ -1,0 +1,307 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Attendance - {{ employee.full_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <a href="{% url 'reports:employee_summary' %}" class="btn btn-outline-secondary mb-2">
+                <i class="bi bi-arrow-left"></i> Back to Employee Summary
+            </a>
+            <h2><i class="bi bi-person-badge"></i> {{ employee.full_name }} - Attendance</h2>
+            <p class="text-muted mb-0">Employee ID: {{ employee.employee_id }} | Department: {{ employee.department.name|default:"N/A" }}</p>
+        </div>
+        <div>
+            {% if employee.photo %}
+                <img src="{{ employee.photo.url }}" class="rounded-circle" style="width: 80px; height: 80px; object-fit: cover;">
+            {% else %}
+                <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                    <i class="bi bi-person-fill text-white fs-1"></i>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Today's Status Card -->
+    <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-calendar-day"></i> Today's Status</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3 text-center">
+                    <h6 class="text-muted">Presence Status</h6>
+                    {% if today_tracking %}
+                        {% if today_tracking.auto_marked_absent %}
+                            <span class="badge bg-danger fs-6"><i class="bi bi-x-circle"></i> Auto-Absent</span>
+                        {% elif today_tracking.auto_checked_out %}
+                            <span class="badge bg-info fs-6"><i class="bi bi-box-arrow-right"></i> Auto Checked-Out</span>
+                        {% elif today_tracking.not_present_count > 0 %}
+                            <span class="badge bg-warning text-dark fs-6"><i class="bi bi-exclamation-triangle"></i> Warning ({{ today_tracking.not_present_count }}/3)</span>
+                        {% elif today_tracking.scan_count > 0 %}
+                            <span class="badge bg-success fs-6"><i class="bi bi-check-circle"></i> Present</span>
+                        {% else %}
+                            <span class="badge bg-secondary fs-6"><i class="bi bi-question-circle"></i> Not Scanned</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge bg-secondary fs-6"><i class="bi bi-question-circle"></i> No Data</span>
+                    {% endif %}
+                </div>
+                <div class="col-md-3 text-center">
+                    <h6 class="text-muted">Check-in</h6>
+                    {% if today_attendance and today_attendance.check_in %}
+                        <span class="badge bg-success fs-6">{{ today_attendance.check_in|date:"g:i A" }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary fs-6">Not Checked In</span>
+                    {% endif %}
+                </div>
+                <div class="col-md-3 text-center">
+                    <h6 class="text-muted">Check-out</h6>
+                    {% if today_attendance and today_attendance.check_out %}
+                        <span class="badge bg-info fs-6">{{ today_attendance.check_out|date:"g:i A" }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary fs-6">Not Checked Out</span>
+                    {% endif %}
+                </div>
+                <div class="col-md-3 text-center">
+                    <h6 class="text-muted">Last Seen</h6>
+                    {% if today_tracking and today_tracking.last_seen %}
+                        <span class="badge bg-dark fs-6">{{ today_tracking.last_seen|date:"g:i A" }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary fs-6">Never</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h3>{{ total_days }}</h3>
+                    <small>Total Records</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h3>{{ present_days }}</h3>
+                    <small>Present Days</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h3>{{ late_days }}</h3>
+                    <small>Late Days</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <h3>{{ absent_days }}</h3>
+                    <small>Absent Days</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h3>{{ avg_work_hours }}h</h3>
+                    <small>Avg Work Hours</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-dark text-white">
+                <div class="card-body text-center">
+                    <h3>{{ total_work_hours|floatformat:0 }}h</h3>
+                    <small>Total Hours</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auto-Tracking Stats -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card border-danger">
+                <div class="card-body d-flex align-items-center">
+                    <div class="me-3">
+                        <i class="bi bi-x-circle-fill text-danger" style="font-size: 2.5rem;"></i>
+                    </div>
+                    <div>
+                        <h4 class="mb-0">{{ auto_absent_count }}</h4>
+                        <small class="text-muted">Times Auto-Marked Absent (Last 30 Days)</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-info">
+                <div class="card-body d-flex align-items-center">
+                    <div class="me-3">
+                        <i class="bi bi-box-arrow-right text-info" style="font-size: 2.5rem;"></i>
+                    </div>
+                    <div>
+                        <h4 class="mb-0">{{ auto_checkout_count }}</h4>
+                        <small class="text-muted">Times Auto-Checked Out (Last 30 Days)</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Form -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-funnel"></i> Filter Records</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" name="start_date" class="form-control" value="{{ request.GET.start_date }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">End Date</label>
+                    <input type="date" name="end_date" class="form-control" value="{{ request.GET.end_date }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search"></i> Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Attendance Records Table -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-table"></i> Attendance Records</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Check In</th>
+                                    <th>Check Out</th>
+                                    <th>Work Hours</th>
+                                    <th>Status</th>
+                                    <th>Method</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for record in records %}
+                                <tr>
+                                    <td>{{ record.date|date:"M d, Y" }}</td>
+                                    <td>
+                                        {% if record.check_in %}
+                                            {{ record.check_in|date:"g:i A" }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if record.check_out %}
+                                            {{ record.check_out|date:"g:i A" }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if record.work_hours %}
+                                            {{ record.work_hours|floatformat:2 }}h
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if record.status == 'PRESENT' %}
+                                            <span class="badge bg-success">Present</span>
+                                        {% elif record.status == 'LATE' %}
+                                            <span class="badge bg-warning text-dark">Late</span>
+                                        {% elif record.status == 'ABSENT' %}
+                                            <span class="badge bg-danger">Absent</span>
+                                        {% elif record.status == 'HALF_DAY' %}
+                                            <span class="badge bg-info">Half Day</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ record.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if record.checkin_method == 'ADMIN' %}
+                                            <span class="badge bg-dark">Admin Scan</span>
+                                        {% elif record.checkin_method == 'SELF' %}
+                                            <span class="badge bg-primary">Self Check-in</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ record.checkin_method|default:"-" }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox fs-1"></i>
+                                        <p class="mt-2">No attendance records found</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Presence Tracking History -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="bi bi-radar"></i> Recent Presence Scans</h5>
+                </div>
+                <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                    {% for tracking in presence_history %}
+                    <div class="border-bottom pb-2 mb-2">
+                        <div class="d-flex justify-content-between">
+                            <strong>{{ tracking.date|date:"M d" }}</strong>
+                            {% if tracking.auto_marked_absent %}
+                                <span class="badge bg-danger">Auto-Absent</span>
+                            {% elif tracking.auto_checked_out %}
+                                <span class="badge bg-info">Auto Checkout</span>
+                            {% elif tracking.not_present_count > 0 %}
+                                <span class="badge bg-warning text-dark">Warning ({{ tracking.not_present_count }}/3)</span>
+                            {% else %}
+                                <span class="badge bg-success">Present</span>
+                            {% endif %}
+                        </div>
+                        <small class="text-muted">
+                            Scans: {{ tracking.scan_count }} | 
+                            Last: {% if tracking.last_seen %}{{ tracking.last_seen|date:"g:i A" }}{% else %}N/A{% endif %}
+                        </small>
+                    </div>
+                    {% empty %}
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-inbox"></i>
+                        <p class="mt-2">No presence tracking data</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

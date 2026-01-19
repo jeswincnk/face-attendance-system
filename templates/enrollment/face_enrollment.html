@@ -1,0 +1,371 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Enroll Face - {{ employee.full_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-camera-fill"></i> Enroll Face for {{ employee.full_name }}</h2>
+        <a href="{% url 'enrollment:employee_detail' employee.pk %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Employee
+        </a>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <!-- Upload Photo Method -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5><i class="bi bi-upload"></i> Upload Photo</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.image.id_for_label }}" class="form-label">
+                                Select Face Image <span class="text-danger">*</span>
+                            </label>
+                            {{ form.image }}
+                            {% if form.image.errors %}
+                                <div class="text-danger">{{ form.image.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                Upload a clear photo with face visible. Supported formats: JPG, PNG
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {{ form.is_primary }}
+                                <label class="form-check-label" for="{{ form.is_primary.id_for_label }}">
+                                    Set as primary face encoding
+                                </label>
+                            </div>
+                            <small class="form-text text-muted">
+                                Primary encoding is used for faster recognition
+                            </small>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Tips for best results:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>Face should be clearly visible</li>
+                                <li>Good lighting conditions</li>
+                                <li>Look directly at the camera</li>
+                                <li>No sunglasses or face coverings</li>
+                            </ul>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-upload"></i> Upload & Enroll Face
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Webcam Capture Method -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                    <h5><i class="bi bi-camera-video"></i> Capture from Webcam</h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center">
+                        <div class="position-relative d-inline-block">
+                            <video id="webcam" width="100%" height="auto" autoplay style="border: 2px solid #ddd; border-radius: 8px; max-height: 400px;"></video>
+                            <canvas id="canvas" style="display: none;"></canvas>
+                            <!-- Countdown overlay -->
+                            <div id="countdownOverlay" class="position-absolute top-50 start-50 translate-middle" style="display: none; z-index: 10;">
+                                <span id="countdownNumber" style="font-size: 120px; font-weight: bold; color: #fff; text-shadow: 3px 3px 6px rgba(0,0,0,0.8);"></span>
+                            </div>
+                            <!-- Progress indicator for multi-capture -->
+                            <div id="captureProgress" class="position-absolute bottom-0 start-0 end-0 p-2" style="display: none; background: rgba(0,0,0,0.7);">
+                                <div class="d-flex justify-content-center gap-2">
+                                    <span class="capture-dot" data-index="1">📷</span>
+                                    <span class="capture-dot" data-index="2">📷</span>
+                                    <span class="capture-dot" data-index="3">📷</span>
+                                    <span class="capture-dot" data-index="4">📷</span>
+                                    <span class="capture-dot" data-index="5">📷</span>
+                                </div>
+                                <small class="text-white mt-1 d-block">Photo <span id="captureCount">0</span>/5</small>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button id="startWebcam" class="btn btn-success">
+                                <i class="bi bi-camera-video-fill"></i> Start Webcam
+                            </button>
+                            <button id="captureBtn" class="btn btn-primary" style="display: none;">
+                                <i class="bi bi-camera-fill"></i> Capture Face
+                            </button>
+                            <button id="autoCaptureBtn" class="btn btn-warning" style="display: none;">
+                                <i class="bi bi-lightning-fill"></i> Auto-Capture 5 Photos
+                            </button>
+                            <button id="stopWebcam" class="btn btn-danger" style="display: none;">
+                                <i class="bi bi-stop-circle"></i> Stop
+                            </button>
+                        </div>
+
+                        <div class="form-check mt-3">
+                            <input class="form-check-input" type="checkbox" id="webcamPrimary">
+                            <label class="form-check-label" for="webcamPrimary">
+                                Set as primary face encoding
+                            </label>
+                        </div>
+
+                        <div id="webcamStatus" class="alert alert-info mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Existing Face Encodings -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5><i class="bi bi-images"></i> Existing Face Encodings ({{ employee.face_encodings.count }})</h5>
+        </div>
+        <div class="card-body">
+            {% if employee.face_encodings.all %}
+                <div class="row">
+                    {% for encoding in employee.face_encodings.all %}
+                        <div class="col-md-3 mb-3">
+                            <div class="card">
+                                <img src="{{ encoding.image.url }}" class="card-img-top" alt="Face encoding">
+                                <div class="card-body p-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">{{ encoding.created_at|date:"M d, Y" }}</small>
+                                        {% if encoding.is_primary %}
+                                            <span class="badge bg-primary">Primary</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="mt-2">
+                                        <form method="post" action="{% url 'enrollment:face_encoding_delete' employee.pk encoding.pk %}" class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this face encoding?');">
+                                                <i class="bi bi-trash"></i> Delete
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center text-muted py-3">
+                    <i class="bi bi-camera-video-off" style="font-size: 48px;"></i>
+                    <p class="mt-2">No face encodings enrolled yet. Use the methods above to enroll a face.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    let webcamStream = null;
+    let isAutoCapturing = false;
+    let capturedCount = 0;
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas');
+    const startBtn = document.getElementById('startWebcam');
+    const captureBtn = document.getElementById('captureBtn');
+    const autoCaptureBtn = document.getElementById('autoCaptureBtn');
+    const stopBtn = document.getElementById('stopWebcam');
+    const statusDiv = document.getElementById('webcamStatus');
+    const countdownOverlay = document.getElementById('countdownOverlay');
+    const countdownNumber = document.getElementById('countdownNumber');
+    const captureProgress = document.getElementById('captureProgress');
+    const captureCountSpan = document.getElementById('captureCount');
+
+    startBtn.addEventListener('click', async () => {
+        try {
+            webcamStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { width: 640, height: 480 } 
+            });
+            video.srcObject = webcamStream;
+            
+            startBtn.style.display = 'none';
+            captureBtn.style.display = 'inline-block';
+            autoCaptureBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'inline-block';
+            
+            showStatus('Webcam started. Use single capture or auto-capture 5 photos for better accuracy!', 'info');
+        } catch (err) {
+            showStatus('Error accessing webcam: ' + err.message, 'danger');
+        }
+    });
+
+    stopBtn.addEventListener('click', () => {
+        stopWebcamFn();
+    });
+    
+    function stopWebcamFn() {
+        isAutoCapturing = false;
+        if (webcamStream) {
+            webcamStream.getTracks().forEach(track => track.stop());
+            video.srcObject = null;
+            
+            startBtn.style.display = 'inline-block';
+            captureBtn.style.display = 'none';
+            autoCaptureBtn.style.display = 'none';
+            stopBtn.style.display = 'none';
+            captureProgress.style.display = 'none';
+            statusDiv.style.display = 'none';
+        }
+    }
+
+    // Single capture
+    captureBtn.addEventListener('click', async () => {
+        await captureAndSave(document.getElementById('webcamPrimary').checked);
+    });
+    
+    // Auto-capture 5 photos
+    autoCaptureBtn.addEventListener('click', async () => {
+        if (isAutoCapturing) return;
+        isAutoCapturing = true;
+        capturedCount = 0;
+        
+        captureBtn.disabled = true;
+        autoCaptureBtn.disabled = true;
+        captureProgress.style.display = 'block';
+        updateCaptureProgress(0);
+        
+        showStatus('🎯 Auto-capture starting! Look at camera, move slightly between captures...', 'warning');
+        
+        for (let i = 0; i < 5; i++) {
+            if (!isAutoCapturing) break;
+            
+            // Countdown 3-2-1
+            for (let c = 3; c > 0; c--) {
+                if (!isAutoCapturing) break;
+                countdownOverlay.style.display = 'block';
+                countdownNumber.textContent = c;
+                await sleep(800);
+            }
+            countdownOverlay.style.display = 'none';
+            
+            if (!isAutoCapturing) break;
+            
+            // Capture
+            const isPrimary = (i === 0); // First photo is primary
+            const success = await captureAndSave(isPrimary, true);
+            
+            if (success) {
+                capturedCount++;
+                updateCaptureProgress(capturedCount);
+                showStatus(`✅ Photo ${capturedCount}/5 captured! ${i < 4 ? 'Move head slightly...' : 'Done!'}`, 'success');
+            } else {
+                showStatus(`⚠️ Photo ${i+1} failed. Trying next...`, 'warning');
+            }
+            
+            if (i < 4) {
+                await sleep(1500); // Wait between captures
+            }
+        }
+        
+        isAutoCapturing = false;
+        captureBtn.disabled = false;
+        autoCaptureBtn.disabled = false;
+        
+        if (capturedCount > 0) {
+            showStatus(`🎉 Captured ${capturedCount}/5 photos successfully! Reloading...`, 'success');
+            setTimeout(() => window.location.reload(), 2000);
+        } else {
+            showStatus('❌ No photos captured. Please try again.', 'danger');
+        }
+    });
+    
+    function updateCaptureProgress(count) {
+        captureCountSpan.textContent = count;
+        document.querySelectorAll('.capture-dot').forEach((dot, idx) => {
+            dot.style.opacity = idx < count ? '1' : '0.3';
+            dot.textContent = idx < count ? '✅' : '📷';
+        });
+    }
+    
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function captureAndSave(isPrimary, isMulti = false) {
+        // Set canvas dimensions to match video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Draw video frame to canvas
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0);
+        
+        // Get image data
+        const imageData = canvas.toDataURL('image/jpeg');
+        
+        // Send to server
+        if (!isMulti) {
+            showStatus('Processing face... Please wait.', 'info');
+            captureBtn.disabled = true;
+        }
+        
+        try {
+            const response = await fetch('{% url "enrollment:capture_face_webcam" employee.pk %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    image: imageData,
+                    is_primary: isPrimary
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                if (!isMulti) {
+                    showStatus(data.message + ' Reloading page...', 'success');
+                    setTimeout(() => window.location.reload(), 1500);
+                }
+                return true;
+            } else {
+                if (!isMulti) {
+                    showStatus(data.message, 'danger');
+                    captureBtn.disabled = false;
+                }
+                return false;
+            }
+        } catch (err) {
+            if (!isMulti) {
+                showStatus('Error: ' + err.message, 'danger');
+                captureBtn.disabled = false;
+            }
+            return false;
+        }
+    }
+
+    function showStatus(message, type) {
+        statusDiv.className = `alert alert-${type} mt-3`;
+        statusDiv.innerHTML = message;
+        statusDiv.style.display = 'block';
+    }
+
+    // Stop webcam when leaving page
+    window.addEventListener('beforeunload', () => {
+        if (webcamStream) {
+            webcamStream.getTracks().forEach(track => track.stop());
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,316 @@
+{% extends 'base.html' %}
+
+{% block title %}Self Check-In - Face Verification{% endblock %}
+
+{% block content %}
+<style>
+    .checkin-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    .video-container {
+        position: relative;
+        background: #000;
+        border-radius: 20px;
+        overflow: hidden;
+        aspect-ratio: 4/3;
+    }
+    #video, #canvas {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    #canvas {
+        display: none;
+    }
+    .face-overlay {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 250px;
+        height: 300px;
+        border: 4px dashed rgba(255,255,255,0.5);
+        border-radius: 50%;
+        pointer-events: none;
+        transition: all 0.3s ease;
+    }
+    .face-overlay.detected {
+        border-color: #28a745;
+        border-style: solid;
+        box-shadow: 0 0 30px rgba(40, 167, 69, 0.5);
+    }
+    .face-overlay.failed {
+        border-color: #dc3545;
+        border-style: solid;
+        box-shadow: 0 0 30px rgba(220, 53, 69, 0.5);
+    }
+    .instruction-text {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.7);
+        color: white;
+        padding: 10px 25px;
+        border-radius: 25px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    .status-message {
+        padding: 15px 25px;
+        border-radius: 10px;
+        font-size: 1.1rem;
+        text-align: center;
+    }
+    .btn-verify {
+        padding: 15px 40px;
+        font-size: 1.2rem;
+        border-radius: 15px;
+        font-weight: 600;
+    }
+    @keyframes scanning {
+        0% { border-color: rgba(255,255,255,0.3); }
+        50% { border-color: rgba(102, 126, 234, 0.8); }
+        100% { border-color: rgba(255,255,255,0.3); }
+    }
+    .scanning {
+        animation: scanning 1.5s infinite;
+    }
+    .security-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+</style>
+
+<div class="container py-4">
+    <div class="checkin-container">
+        <!-- Header -->
+        <div class="text-center mb-4">
+            <h2><i class="bi bi-shield-check"></i> Self Check-In</h2>
+            <p class="text-muted">Face Verification with 3D Landmark Detection</p>
+            <div class="security-badge">
+                <i class="bi bi-fingerprint fs-4"></i>
+                <span>MediaPipe Face Mesh - 468 3D Landmarks</span>
+            </div>
+        </div>
+
+        {% if not has_face %}
+            <div class="alert alert-danger text-center">
+                <i class="bi bi-exclamation-triangle fs-1"></i>
+                <h5 class="mt-2">Face Not Enrolled</h5>
+                <p>Your face has not been enrolled in the system. Please contact your administrator to enroll your face first.</p>
+                <a href="{% url 'accounts:employee_portal' %}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to Portal
+                </a>
+            </div>
+        {% else %}
+            <!-- Video Feed -->
+            <div class="card shadow mb-4">
+                <div class="card-body p-0">
+                    <div class="video-container" id="videoContainer">
+                        <video id="video" autoplay playsinline></video>
+                        <canvas id="canvas"></canvas>
+                        <div class="face-overlay scanning" id="faceOverlay"></div>
+                        <div class="instruction-text" id="instructionText">
+                            <i class="bi bi-person-bounding-box"></i> Position your face in the circle
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Message -->
+            <div id="statusMessage" class="status-message bg-light mb-4" style="display: none;"></div>
+
+            <!-- Action Buttons -->
+            <div class="text-center mb-4">
+                <button id="verifyBtn" class="btn btn-success btn-verify me-3" onclick="captureAndVerify()">
+                    <i class="bi bi-check-circle me-2"></i>Verify & Check In
+                </button>
+                <a href="{% url 'accounts:employee_portal' %}" class="btn btn-outline-secondary btn-verify">
+                    <i class="bi bi-x-circle me-2"></i>Cancel
+                </a>
+            </div>
+
+            <!-- Employee Info -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            {% if employee.photo %}
+                                <img src="{{ employee.photo.url }}" class="rounded-circle" style="width: 60px; height: 60px; object-fit: cover;">
+                            {% else %}
+                                <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                    <i class="bi bi-person fs-4"></i>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col">
+                            <h6 class="mb-0">{{ employee.full_name }}</h6>
+                            <small class="text-muted">{{ employee.employee_id }} | {{ employee.department.name|default:"No Department" }}</small>
+                        </div>
+                        <div class="col-auto">
+                            <span class="badge bg-info">Verifying as this employee</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Security Info -->
+            <div class="card mt-3 border-0 bg-light">
+                <div class="card-body">
+                    <h6><i class="bi bi-shield-lock text-primary"></i> Security Features</h6>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <small class="text-muted">
+                                <i class="bi bi-check-circle text-success"></i> 3D Face Mesh Analysis
+                            </small>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted">
+                                <i class="bi bi-check-circle text-success"></i> Real-time Face Detection
+                            </small>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted">
+                                <i class="bi bi-check-circle text-success"></i> Identity Verification
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if has_face %}
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const statusMessage = document.getElementById('statusMessage');
+    const verifyBtn = document.getElementById('verifyBtn');
+    const faceOverlay = document.getElementById('faceOverlay');
+    const instructionText = document.getElementById('instructionText');
+
+    // Start camera
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: 'user'
+                }
+            });
+            video.srcObject = stream;
+            
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+            };
+        } catch (error) {
+            showStatus('error', 'Cannot access camera: ' + error.message);
+        }
+    }
+
+    function showStatus(type, message) {
+        statusMessage.style.display = 'block';
+        statusMessage.className = 'status-message mb-4';
+        
+        if (type === 'success') {
+            statusMessage.classList.add('bg-success', 'text-white');
+            statusMessage.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>' + message;
+        } else if (type === 'error') {
+            statusMessage.classList.add('bg-danger', 'text-white');
+            statusMessage.innerHTML = '<i class="bi bi-x-circle-fill me-2"></i>' + message;
+        } else if (type === 'info') {
+            statusMessage.classList.add('bg-info', 'text-white');
+            statusMessage.innerHTML = '<i class="bi bi-info-circle-fill me-2"></i>' + message;
+        } else {
+            statusMessage.classList.add('bg-warning');
+            statusMessage.innerHTML = '<i class="bi bi-exclamation-circle-fill me-2"></i>' + message;
+        }
+    }
+
+    async function captureAndVerify() {
+        // Disable button
+        verifyBtn.disabled = true;
+        verifyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Verifying...';
+        
+        // Update overlay
+        faceOverlay.classList.remove('scanning', 'failed');
+        faceOverlay.classList.add('detected');
+        instructionText.innerHTML = '<i class="bi bi-cpu"></i> Processing with 3D Face Mesh...';
+        
+        showStatus('info', 'Analyzing face with MediaPipe 3D landmarks...');
+        
+        // Capture frame
+        ctx.drawImage(video, 0, 0);
+        const imageData = canvas.toDataURL('image/jpeg', 0.9);
+        
+        try {
+            const response = await fetch('{% url "accounts:verify_face" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    image: imageData,
+                    action: 'checkin'
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showStatus('success', data.message);
+                faceOverlay.style.borderColor = '#28a745';
+                instructionText.innerHTML = '<i class="bi bi-check-lg"></i> Verified!';
+                
+                // Play success sound
+                try {
+                    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleGtXV4Onwu+niU02FzmZ1O25i1g7N1eImcvysoVqQSgzUI2z5sOfb0kqJziJssHppHdRMCUnRoe52+Sfak4sIStKjr7m+aFoUCoWI1uVxPHCmnVNKxkeRJbM9sOfd1E5Ew==');
+                    audio.play();
+                } catch(e) {}
+                
+                // Redirect after 2 seconds
+                setTimeout(() => {
+                    window.location.href = '{% url "accounts:employee_portal" %}';
+                }, 2000);
+            } else {
+                showStatus('error', data.message);
+                faceOverlay.classList.remove('detected');
+                faceOverlay.classList.add('failed');
+                instructionText.innerHTML = '<i class="bi bi-x-circle"></i> ' + (data.message || 'Verification failed');
+                
+                // Reset after 3 seconds
+                setTimeout(() => {
+                    verifyBtn.disabled = false;
+                    verifyBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Verify & Check In';
+                    faceOverlay.classList.remove('failed');
+                    faceOverlay.classList.add('scanning');
+                    instructionText.innerHTML = '<i class="bi bi-person-bounding-box"></i> Position your face in the circle';
+                }, 3000);
+            }
+        } catch (error) {
+            showStatus('error', 'Network error. Please try again.');
+            verifyBtn.disabled = false;
+            verifyBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Verify & Check In';
+            faceOverlay.classList.remove('detected');
+            faceOverlay.classList.add('scanning');
+        }
+    }
+
+    // Start camera on page load
+    startCamera();
+</script>
+{% endif %}
+{% endblock %}

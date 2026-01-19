@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+
+{% block title %}My Attendance - {{ employee.full_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2><i class="bi bi-journal-text"></i> My Attendance History</h2>
+            <p class="text-muted">View your attendance records</p>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'accounts:employee_portal' %}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Back to Portal
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Summary -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center border-0 shadow-sm">
+                <div class="card-body">
+                    <i class="bi bi-calendar-check fs-2 text-primary"></i>
+                    <h4 class="mt-2 mb-0">{{ total_records }}</h4>
+                    <small class="text-muted">Total Records</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center border-0 shadow-sm">
+                <div class="card-body">
+                    <i class="bi bi-check-circle fs-2 text-success"></i>
+                    <h4 class="mt-2 mb-0">{{ present_days }}</h4>
+                    <small class="text-muted">Present Days</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center border-0 shadow-sm">
+                <div class="card-body">
+                    <i class="bi bi-clock fs-2 text-warning"></i>
+                    <h4 class="mt-2 mb-0">{{ late_days }}</h4>
+                    <small class="text-muted">Late Days</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center border-0 shadow-sm">
+                <div class="card-body">
+                    <i class="bi bi-hourglass-split fs-2 text-info"></i>
+                    <h4 class="mt-2 mb-0">{{ total_hours|floatformat:1 }}</h4>
+                    <small class="text-muted">Total Hours</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">From Date</label>
+                    <input type="date" name="from_date" class="form-control" value="{{ request.GET.from_date }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">To Date</label>
+                    <input type="date" name="to_date" class="form-control" value="{{ request.GET.to_date }}">
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-filter"></i> Filter
+                    </button>
+                    <a href="{% url 'accounts:my_attendance' %}" class="btn btn-outline-secondary">Reset</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Attendance Records Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Check In</th>
+                            <th>Check Out</th>
+                            <th>Work Hours</th>
+                            <th>Status</th>
+                            <th>Method</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in records %}
+                        <tr>
+                            <td>
+                                <strong>{{ record.date|date:"D, M d" }}</strong>
+                            </td>
+                            <td>
+                                {% if record.check_in %}
+                                    <span class="text-success">{{ record.check_in|time:"H:i:s" }}</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.check_out %}
+                                    <span class="text-danger">{{ record.check_out|time:"H:i:s" }}</span>
+                                {% else %}
+                                    {% if record.check_in and not record.is_checked_out %}
+                                        <span class="badge bg-info">Still Working</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.work_hours %}
+                                    {{ record.work_hours }} hrs
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.status == 'PRESENT' %}
+                                    <span class="badge bg-success">Present</span>
+                                {% elif record.status == 'LATE' %}
+                                    <span class="badge bg-warning text-dark">Late</span>
+                                {% elif record.status == 'ABSENT' %}
+                                    <span class="badge bg-danger">Absent</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ record.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.checkin_method == 'SELF' %}
+                                    <span class="badge bg-primary"><i class="bi bi-person"></i> Self</span>
+                                {% elif record.checkin_method == 'ADMIN' %}
+                                    <span class="badge bg-info"><i class="bi bi-camera"></i> Admin</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ record.checkin_method }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">
+                                <i class="bi bi-inbox fs-1"></i>
+                                <p class="mt-2">No attendance records found</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

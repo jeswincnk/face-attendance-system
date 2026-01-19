@@ -1,0 +1,247 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Reports & Analytics{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-card {
+        border-radius: 15px;
+        transition: all 0.3s;
+        border: none;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        height: 100%;
+    }
+    .report-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 12px 20px rgba(0,0,0,0.2);
+    }
+    .report-icon {
+        font-size: 4rem;
+        margin-bottom: 20px;
+    }
+    .hero-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 60px 0;
+        border-radius: 15px;
+        margin-bottom: 40px;
+    }
+    .stat-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        margin: 10px;
+    }
+    .feature-list {
+        list-style: none;
+        padding: 0;
+    }
+    .feature-list li {
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+    }
+    .feature-list li:last-child {
+        border-bottom: none;
+    }
+    .feature-list i {
+        color: #667eea;
+        margin-right: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="hero-section">
+        <div class="container text-center">
+            <h1 class="display-4"><i class="bi bi-graph-up"></i> Reports & Analytics Center</h1>
+            <p class="lead">Generate comprehensive attendance reports and analyze workforce data</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card report-card">
+                <div class="card-body text-center">
+                    <div class="report-icon">
+                        <i class="bi bi-calendar-check text-primary"></i>
+                    </div>
+                    <h3>Attendance Reports</h3>
+                    <p class="text-muted">Generate detailed attendance reports with filters for date range, employee, and department</p>
+                    <ul class="feature-list text-start">
+                        <li><i class="bi bi-check-circle-fill"></i> Daily, Weekly, Monthly reports</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Filter by employee & department</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Visual charts & graphs</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Export to CSV, Excel, PDF</li>
+                    </ul>
+                    <a href="{% url 'reports:attendance_report' %}" class="btn btn-primary btn-lg mt-3">
+                        <i class="bi bi-file-earmark-text"></i> Generate Report
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card report-card">
+                <div class="card-body text-center">
+                    <div class="report-icon">
+                        <i class="bi bi-person-badge text-success"></i>
+                    </div>
+                    <h3>Employee Summary</h3>
+                    <p class="text-muted">View individual employee attendance statistics and performance metrics</p>
+                    <ul class="feature-list text-start">
+                        <li><i class="bi bi-check-circle-fill"></i> Total days present/absent</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Late arrival tracking</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Work hours analysis</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Monthly summaries</li>
+                    </ul>
+                    <a href="{% url 'reports:employee_summary' %}" class="btn btn-success btn-lg mt-3">
+                        <i class="bi bi-person-lines-fill"></i> View Summary
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card report-card">
+                <div class="card-body text-center">
+                    <div class="report-icon">
+                        <i class="bi bi-building text-warning"></i>
+                    </div>
+                    <h3>Department Analytics</h3>
+                    <p class="text-muted">Analyze attendance patterns and trends across departments</p>
+                    <ul class="feature-list text-start">
+                        <li><i class="bi bi-check-circle-fill"></i> Department-wise statistics</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Comparative analysis</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Trend visualization</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Performance metrics</li>
+                    </ul>
+                    <button class="btn btn-warning btn-lg mt-3" disabled>
+                        <i class="bi bi-bar-chart"></i> Coming Soon
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4><i class="bi bi-lightning-fill"></i> Quick Actions</h4>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        <a href="{% url 'reports:attendance_report' %}?start_date={{ today|date:'Y-m-d' }}&end_date={{ today|date:'Y-m-d' }}" 
+                           class="list-group-item list-group-item-action">
+                            <i class="bi bi-calendar-day"></i> Today's Attendance Report
+                        </a>
+                        <a href="{% url 'reports:attendance_report' %}?start_date={{ week_start|date:'Y-m-d' }}&end_date={{ today|date:'Y-m-d' }}" 
+                           class="list-group-item list-group-item-action">
+                            <i class="bi bi-calendar-week"></i> This Week's Report
+                        </a>
+                        <a href="{% url 'reports:attendance_report' %}?start_date={{ month_start|date:'Y-m-d' }}&end_date={{ today|date:'Y-m-d' }}" 
+                           class="list-group-item list-group-item-action">
+                            <i class="bi bi-calendar-month"></i> This Month's Report
+                        </a>
+                        <a href="{% url 'reports:attendance_report' %}?status=LATE" 
+                           class="list-group-item list-group-item-action">
+                            <i class="bi bi-clock-history"></i> Late Arrivals Report
+                        </a>
+                        <a href="{% url 'reports:attendance_report' %}?status=ABSENT" 
+                           class="list-group-item list-group-item-action">
+                            <i class="bi bi-x-circle"></i> Absence Report
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h4><i class="bi bi-info-circle-fill"></i> Export Formats</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <i class="bi bi-file-earmark-excel text-success" style="font-size: 3rem;"></i>
+                            <h5 class="mt-2">CSV</h5>
+                            <p class="text-muted small">Comma-separated values for spreadsheets</p>
+                        </div>
+                        <div class="col-4">
+                            <i class="bi bi-file-earmark-spreadsheet text-info" style="font-size: 3rem;"></i>
+                            <h5 class="mt-2">Excel</h5>
+                            <p class="text-muted small">Microsoft Excel workbook format</p>
+                        </div>
+                        <div class="col-4">
+                            <i class="bi bi-file-earmark-pdf text-danger" style="font-size: 3rem;"></i>
+                            <h5 class="mt-2">PDF</h5>
+                            <p class="text-muted small">Professional printable reports</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <p class="mb-0"><i class="bi bi-info-circle"></i> All reports can be exported in multiple formats for easy sharing and archiving.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h4><i class="bi bi-star-fill"></i> Report Features</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 text-center mb-3">
+                            <i class="bi bi-funnel text-primary" style="font-size: 2.5rem;"></i>
+                            <h5 class="mt-2">Advanced Filters</h5>
+                            <p class="text-muted small">Filter by date range, employee, department, and status</p>
+                        </div>
+                        <div class="col-md-3 text-center mb-3">
+                            <i class="bi bi-graph-up-arrow text-success" style="font-size: 2.5rem;"></i>
+                            <h5 class="mt-2">Visual Analytics</h5>
+                            <p class="text-muted small">Interactive charts and graphs for better insights</p>
+                        </div>
+                        <div class="col-md-3 text-center mb-3">
+                            <i class="bi bi-clock-history text-warning" style="font-size: 2.5rem;"></i>
+                            <h5 class="mt-2">Real-time Data</h5>
+                            <p class="text-muted small">Always up-to-date with latest attendance records</p>
+                        </div>
+                        <div class="col-md-3 text-center mb-3">
+                            <i class="bi bi-download text-info" style="font-size: 2.5rem;"></i>
+                            <h5 class="mt-2">Easy Export</h5>
+                            <p class="text-muted small">Download reports in your preferred format</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Add some animation on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const cards = document.querySelectorAll('.report-card');
+        cards.forEach((card, index) => {
+            setTimeout(() => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(30px)';
+                card.style.transition = 'all 0.5s';
+                setTimeout(() => {
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, 10);
+            }, index * 100);
+        });
+    });
+</script>
+{% endblock %}

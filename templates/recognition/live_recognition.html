@@ -1,0 +1,860 @@
+{% extends 'base.html' %}
+
+{% block title %}Live Face Recognition{% endblock %}
+
+{% block content %}
+<style>
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+    .pulse-animation {
+        animation: pulse 2s infinite;
+    }
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    .notification-card {
+        animation: slideIn 0.5s ease-out;
+        transition: all 0.3s ease;
+    }
+    .notification-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+    .camera-status {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 10;
+    }
+    .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+        animation: blink 1.5s infinite;
+    }
+    @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+    }
+    .video-container {
+        position: relative;
+        background: #000;
+        border-radius: 0;
+        overflow: hidden;
+        width: 100%;
+        min-height: 480px;
+        max-height: 720px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .video-container img {
+        max-width: 100%;
+        max-height: 720px;
+        width: auto;
+        height: auto;
+        display: block;
+        margin: 0 auto;
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+    }
+    .face-tracking-indicator {
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        background: rgba(0, 255, 0, 0.9);
+        color: white;
+        padding: 8px 15px;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 14px;
+        z-index: 10;
+        animation: pulse 1.5s infinite;
+    }
+    /* Popup notification styles */
+    #popupContainer {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 9999;
+        max-width: 350px;
+    }
+    .popup-notification {
+        animation: slideInRight 0.5s ease;
+        margin-bottom: 10px;
+        border-left: 4px solid;
+    }
+    @keyframes slideInRight {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes fadeOut {
+        from { opacity: 1; }
+        to { opacity: 0; transform: translateX(50px); }
+    }
+</style>
+
+<!-- Popup notification container -->
+<div id="popupContainer"></div>
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h1><i class="bi bi-webcam pulse-animation"></i> Live Face Recognition</h1>
+            <p class="text-muted">Real-time attendance tracking via camera feed with AI face detection</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-lg">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-camera-video"></i> Live Camera Feed - AI Tracking Active</h5>
+                    <span class="badge bg-light text-dark">
+                        <span class="status-indicator bg-success"></span>
+                        LIVE
+                    </span>
+                </div>
+                <div class="card-body p-0" style="background: #000;">
+                    <div class="video-container">
+                        <div class="face-tracking-indicator">
+                            <i class="bi bi-crosshair"></i> AI Face Tracking Active
+                        </div>
+                        <img src="{% url 'recognition:video_feed' %}?t={{ timestamp }}" 
+                             alt="Live Video Feed" 
+                             id="videoFeed"
+                             style="display: block;"
+                             onerror="handleVideoError(this);"
+                             onload="handleVideoLoad(this);">
+                        <div id="videoError" class="position-absolute top-50 start-50 translate-middle text-white text-center" style="display:none; z-index: 5;">
+                            <i class="bi bi-exclamation-triangle" style="font-size: 4rem;"></i>
+                            <p class="mt-3 fs-5">Camera not available</p>
+                            <button class="btn btn-light btn-sm mt-2" onclick="reloadVideoFeed()">
+                                <i class="bi bi-arrow-clockwise"></i> Retry
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-light">
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-primary" id="testCameraBtn">
+                            <i class="bi bi-camera"></i> Test Camera
+                        </button>
+                        <button class="btn btn-success" id="reloadBtn">
+                            <i class="bi bi-arrow-clockwise"></i> Reload Database
+                        </button>
+                        <button class="btn btn-danger" id="stopBtn">
+                            <i class="bi bi-stop-circle"></i> Stop Camera
+                        </button>
+                        <button class="btn btn-warning" id="presenceScanBtn" onclick="runPresenceScan()">
+                            <i class="bi bi-search"></i> Run Presence Scan
+                        </button>
+                        <a href="{% url 'home' %}" class="btn btn-secondary">
+                            <i class="bi bi-house"></i> Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Recognition Settings Info -->
+            <div class="card shadow-lg mb-3 border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-gear-fill"></i> Recognition Settings</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2"><strong>Confidence Threshold:</strong> <span class="badge bg-primary">50</span></p>
+                    <p class="text-muted small mb-0">
+                        <i class="bi bi-info-circle"></i> Lower score = better match. 
+                        Only faces with score &lt; 50 are recognized.
+                    </p>
+                    <hr>
+                    <p class="small mb-0">
+                        <strong>Score Guide:</strong><br>
+                        • &lt; 30: Excellent match ✅<br>
+                        • 30-50: Good match ✔️<br>
+                        • 50-70: Uncertain ⚠️<br>
+                        • &gt; 70: No match ❌
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Real-time Recognition Status -->
+            <div class="card shadow-lg mb-3">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-person-check"></i> Recognition Status</h5>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    <div id="recognitionStatus">
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-eye fs-1"></i>
+                            <p class="mt-2">Waiting for faces...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Today's Attendance -->
+            <div class="card shadow mb-3">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-calendar-check"></i> Today's Attendance</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <h3 class="text-success" id="presentCount">0</h3>
+                            <small class="text-muted">Present</small>
+                        </div>
+                        <div class="col-6">
+                            <h3 class="text-danger" id="absentCount">0</h3>
+                            <small class="text-muted">Absent</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Quick Tips</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success"></i> Face camera directly
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success"></i> Ensure good lighting
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success"></i> Stay still for 1-2 sec
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success"></i> 5-min cooldown between check-ins
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Presence Tracking Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-lg">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-people-fill"></i> Automated Presence Tracking</h5>
+                    <div>
+                        <button class="btn btn-sm btn-light me-2" onclick="refreshPresenceStatus()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                        <button class="btn btn-sm btn-outline-light" onclick="toggleAutoScan()">
+                            <i class="bi bi-play-fill" id="autoScanIcon"></i> <span id="autoScanText">Start Auto-Scan</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white text-center">
+                                <div class="card-body py-3">
+                                    <h2 id="trackingPresent">0</h2>
+                                    <small>Present</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-dark text-center">
+                                <div class="card-body py-3">
+                                    <h2 id="trackingWarning">0</h2>
+                                    <small>Not Detected (Warning)</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-danger text-white text-center">
+                                <div class="card-body py-3">
+                                    <h2 id="trackingAbsent">0</h2>
+                                    <small>Marked Absent</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white text-center">
+                                <div class="card-body py-3">
+                                    <h2 id="trackingCheckedOut">0</h2>
+                                    <small>Auto Checked-Out</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle"></i> <strong>Auto-Tracking Rules:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>1st scan without detection → Warning</li>
+                            <li>3rd consecutive scan without detection → Mark as <strong>ABSENT</strong> (if no check-in) or <strong>AUTO CHECK-OUT</strong> (if already checked in)</li>
+                        </ul>
+                    </div>
+                    
+                    <div id="presenceTable" class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Department</th>
+                                    <th>Status</th>
+                                    <th>Warnings</th>
+                                    <th>Last Seen</th>
+                                    <th>Check-in</th>
+                                    <th>Check-out</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="presenceTableBody">
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-4">
+                                        <i class="bi bi-arrow-clockwise"></i> Click "Refresh" to load presence data
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-light">
+                    <small class="text-muted">
+                        <i class="bi bi-clock"></i> Last scan: <span id="lastScanTime">Never</span>
+                        | <i class="bi bi-graph-up"></i> Avg. Working Hours (30 days): <span id="avgWorkHours">--</span>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Audio for recognition feedback
+    const successAudio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBi6N1vPTgDIIHm7E7+OZSBMOZ6vo8K1aFQ1Go+Dxt2ceBjWS2fLLdSsFJHfE8NqOPwoUXrPp66lVFApDn+Dys2whBi2M1fPUgDEIHm/E7+OZSBMOaKvo8K1aFQ1Go+Dxt2ceBjWS2fLLdSsFJHfE8NqOPwoUXrPp66lVFApDn+Dys2whBi2M1fPUgDEIHm/E7+OZSBMOaKvo8K1aFQ1Go+Dxt2ceBjWS2fLLdSsFJHfE8NqOPwoUXrPp66lVFApDn+Dys2whBi2M1fPUgDEIHm/E7+OZSBMOaKvo8K1aFQ1Go+Dxt2ceBjWS2fLLdSsFJHfE8NqOPwoUXrPp66lVFApDn+Dys2whBi2M1fPUgDEIHm/E7+OZSBMOaKvo8K1aFQ1Go+Dxt2ceBjWS2fLLdSsFJHfE8NqOPwoUXrPp66lVFApDn+Dys2whBi2M1fPUgDEIHm/E7+OZSBMOaKvo8K1aFQ1Go+Dxt2ceBjWS2fLLdSsFJHfE8NqOPwoUXrPp66lVFApDn+Dys2whBi2M1fPUgDEIHm/E7+OZSBMOaKvo8K1aFQ1Go+Dxt2ceBjWS2fLLdSsFJHfE8NqOPwoUXrPp66lVFApDn+Dys2whBi2M1fPUgDEIHm/E7+OZSBMOaKvo8K1aFQ1Go+Dxt2ceBjWS2fLLdSsFJHfE8NqOPwoUXrPp66lVFApDn+Dys2whBi2M1fPUgDEIHm/E7+OZSBMOaKvo8K1aFQ1Go+Dxt2ceBjWS2fLLdSsFJHfE8NqOPwoUXrPp66lVFApDn+Dys2whBi2M1fPUgDEIHm/E7+OZSBMOaKvo8K1aFQ1Go+Dxt2ceBjWS2fLLdSsFJHfE8NqOPwoUXrPp66lVFApDn+Dys2whBi2M1fPUgDEIHm/E7+OZSBMOaKvo8K1aFQ1Go+Dxt2ceBjWS2fLLdSsFJHfE8NqOPwoUXrPp66lVFApDn+Dys2whBi2M1fPUgDEI');
+
+    let recognizedEmployees = new Set();
+    let lastUpdateTime = Date.now();
+
+    // Poll for attendance updates
+    async function updateAttendanceStatus() {
+        try {
+            const response = await fetch('{% url "recognition:get_recognition_status" %}');
+            const data = await response.json();
+            
+            if (data.success) {
+                updateRecognitionPanel(data.recent_recognitions);
+                updateAttendanceCount(data.present_count, data.absent_count);
+            }
+        } catch (error) {
+            console.error('Error fetching status:', error);
+        }
+    }
+
+    function updateRecognitionPanel(recognitions) {
+        const panel = document.getElementById('recognitionStatus');
+        
+        if (recognitions.length === 0) {
+            panel.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-eye fs-1"></i>
+                    <p class="mt-2">Waiting for faces...</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '';
+        recognitions.forEach(rec => {
+            const isNew = !recognizedEmployees.has(rec.employee_id);
+            if (isNew) {
+                recognizedEmployees.add(rec.employee_id);
+                playSuccessSound();
+                showPopupNotification(rec);  // Show popup for new recognition
+            }
+            
+            const statusColor = rec.status === 'PRESENT' ? 'success' : rec.status === 'LATE' ? 'warning' : 'info';
+            const icon = rec.status === 'PRESENT' ? 'check-circle' : rec.status === 'LATE' ? 'clock' : 'person-check';
+            
+            html += `
+                <div class="notification-card card mb-2 border-${statusColor}">
+                    <div class="card-body p-2">
+                        <div class="d-flex align-items-center">
+                            <div class="me-3">
+                                <i class="bi bi-${icon} fs-3 text-${statusColor}"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-0">${rec.name}</h6>
+                                <small class="text-muted">${rec.employee_id}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-${statusColor}">${rec.status}</span>
+                                <br>
+                                <small class="text-muted">${rec.time}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        panel.innerHTML = html;
+    }
+
+    function updateAttendanceCount(present, absent) {
+        document.getElementById('presentCount').textContent = present;
+        document.getElementById('absentCount').textContent = absent;
+    }
+
+    function playSuccessSound() {
+        try {
+            successAudio.play().catch(e => console.log('Audio play failed:', e));
+        } catch (e) {
+            console.log('Audio not available');
+        }
+    }
+
+    // Show popup notification for recognized employee
+    function showPopupNotification(rec) {
+        const container = document.getElementById('popupContainer');
+        if (!container) return;
+        
+        const statusColor = rec.status === 'PRESENT' ? 'success' : rec.status === 'LATE' ? 'warning' : 'info';
+        const popup = document.createElement('div');
+        popup.className = `alert alert-${statusColor} popup-notification shadow`;
+        popup.innerHTML = `
+            <div class="d-flex align-items-center">
+                <i class="bi bi-person-check-fill me-2 fs-4"></i>
+                <div>
+                    <strong>${rec.name}</strong><br>
+                    <small>${rec.status} - ${rec.time}</small>
+                </div>
+            </div>
+        `;
+        container.appendChild(popup);
+        
+        // Auto-remove after 4 seconds
+        setTimeout(() => {
+            popup.style.animation = 'fadeOut 0.5s ease';
+            setTimeout(() => popup.remove(), 500);
+        }, 4000);
+    }
+
+    // Update every 2 seconds
+    setInterval(updateAttendanceStatus, 2000);
+    updateAttendanceStatus(); // Initial load
+
+    // Reload button
+    document.getElementById('reloadBtn').addEventListener('click', async function() {
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Reloading...';
+        
+        try {
+            const response = await fetch('{% url "recognition:reload_encodings" %}', {
+                method: 'POST',
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('Success', data.message, 'success');
+                recognizedEmployees.clear();
+            } else {
+                showToast('Error', data.message, 'danger');
+            }
+        } catch (error) {
+            showToast('Error', 'Failed to reload face database', 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Reload Database';
+        }
+    });
+    
+    // Stop button
+    document.getElementById('stopBtn').addEventListener('click', async function() {
+        if (confirm('Are you sure you want to stop the camera?')) {
+            try {
+                await fetch('{% url "recognition:stop_camera" %}', {
+                    method: 'POST',
+                });
+                window.location.href = '{% url "home" %}';
+            } catch (error) {
+                showToast('Error', 'Failed to stop camera', 'danger');
+            }
+        }
+    });
+    
+    // Test camera button
+    document.getElementById('testCameraBtn').addEventListener('click', async function() {
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Testing...';
+        
+        try {
+            const response = await fetch('{% url "recognition:test_camera" %}');
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('Camera OK', data.message, 'success');
+            } else {
+                showToast('Camera Error', data.message, 'danger');
+            }
+        } catch (error) {
+            showToast('Error', 'Failed to test camera: ' + error.message, 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-camera"></i> Test Camera';
+        }
+    });
+
+    // Toast notification function
+    function showToast(title, message, type) {
+        // Create bootstrap toast or use alert as fallback
+        const toast = `
+            <div class="position-fixed top-0 end-0 p-3" style="z-index: 11">
+                <div class="toast show" role="alert">
+                    <div class="toast-header bg-${type} text-white">
+                        <strong class="me-auto">${title}</strong>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const container = document.createElement('div');
+        container.innerHTML = toast;
+        document.body.appendChild(container);
+        
+        setTimeout(() => container.remove(), 3000);
+    }
+    
+    // Video error handling
+    let videoLoadAttempts = 0;
+    const maxVideoAttempts = 5;
+    let videoIsLive = false;
+    
+    function handleVideoError(img) {
+        console.error('Video feed error, attempt:', videoLoadAttempts + 1);
+        videoIsLive = false;
+        
+        if (videoLoadAttempts < maxVideoAttempts) {
+            videoLoadAttempts++;
+            // Attempt auto-reload after short delay
+            setTimeout(reloadVideoFeed, 2000);
+        } else {
+            img.style.display = 'none';
+            document.getElementById('videoError').style.display = 'block';
+        }
+    }
+    
+    function handleVideoLoad(img) {
+        console.log('Video feed loaded successfully');
+        videoIsLive = true;
+        videoLoadAttempts = 0;
+        img.style.display = 'block';
+        document.getElementById('videoError').style.display = 'none';
+        lastFrameTime = Date.now();
+    }
+    
+    function reloadVideoFeed() {
+        const img = document.getElementById('videoFeed');
+        const currentSrc = img.src.split('?')[0];
+        console.log('Reloading video feed...');
+        img.src = '';  // Clear src first
+        setTimeout(() => {
+            img.src = currentSrc + '?t=' + new Date().getTime();
+            document.getElementById('videoError').style.display = 'none';
+            img.style.display = 'block';
+            lastFrameTime = Date.now();
+        }, 100);
+    }
+
+    // Stop camera when leaving the page
+    function stopCameraSession() {
+        try {
+            const url = "{% url 'recognition:stop_camera' %}";
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon(url);
+            } else {
+                fetch(url, { method: 'POST', keepalive: true });
+            }
+        } catch (e) {
+            console.warn('Could not notify stop camera', e);
+        }
+    }
+    window.addEventListener('beforeunload', stopCameraSession);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            stopCameraSession();
+        }
+    });
+
+    // Watchdog to restart feed if it stalls
+    let lastFrameTime = Date.now();
+    let stalledCount = 0;
+    
+    // Check if img is actually rendering frames (check naturalWidth)
+    setInterval(() => {
+        const img = document.getElementById('videoFeed');
+        if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
+            // Image has dimensions, so it's loaded
+            lastFrameTime = Date.now();
+            videoIsLive = true;
+            stalledCount = 0;
+        } else if (videoIsLive) {
+            // Was live but now stalled
+            stalledCount++;
+            if (stalledCount > 3) {
+                console.warn('Video feed stalled, reloading...');
+                videoLoadAttempts = 0;  // Reset attempts
+                reloadVideoFeed();
+                stalledCount = 0;
+            }
+        }
+    }, 2000);
+    
+    // Initial load check - if not loaded after 5 seconds, try reloading
+    setTimeout(() => {
+        const img = document.getElementById('videoFeed');
+        if (!img || img.naturalWidth === 0) {
+            console.log('Initial video load failed, attempting reload...');
+            reloadVideoFeed();
+        }
+    }, 5000);
+    
+    // ========== PRESENCE TRACKING FUNCTIONS ==========
+    let autoScanInterval = null;
+    let autoScanActive = false;
+    const SCAN_INTERVAL = 15 * 60 * 1000; // 15 minutes in milliseconds
+    
+    // Run a single presence scan
+    async function runPresenceScan() {
+        const btn = document.getElementById('presenceScanBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Scanning...';
+        
+        try {
+            const response = await fetch('{% url "recognition:run_presence_scan" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('Scan Complete', `Detected ${data.detected_count} employees. ${data.warning_count} warnings, ${data.absent_count} absent.`, 'success');
+                document.getElementById('lastScanTime').textContent = new Date().toLocaleTimeString();
+                refreshPresenceStatus();
+                loadAttendanceStats();
+            } else {
+                showToast('Scan Failed', data.message || 'Unknown error', 'danger');
+            }
+        } catch (error) {
+            showToast('Error', 'Failed to run presence scan: ' + error.message, 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-search"></i> Run Presence Scan';
+        }
+    }
+    
+    // Refresh presence status table
+    async function refreshPresenceStatus() {
+        try {
+            const response = await fetch('{% url "recognition:get_presence_status" %}');
+            const data = await response.json();
+            
+            if (data.success) {
+                updatePresenceTable(data.employees);
+                updatePresenceStats(data.stats);
+            }
+        } catch (error) {
+            console.error('Error fetching presence status:', error);
+        }
+    }
+    
+    // Update the presence table
+    function updatePresenceTable(employees) {
+        const tbody = document.getElementById('presenceTableBody');
+        
+        if (employees.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        No employees tracked yet. Run a scan to start tracking.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        let html = '';
+        employees.forEach(emp => {
+            let statusBadge = '';
+            let statusClass = '';
+            
+            switch(emp.status) {
+                case 'present':
+                    statusBadge = '<span class="badge bg-success">Present</span>';
+                    statusClass = 'table-success';
+                    break;
+                case 'warning':
+                    statusBadge = `<span class="badge bg-warning text-dark">Warning (${emp.not_present_count}x)</span>`;
+                    statusClass = 'table-warning';
+                    break;
+                case 'absent':
+                    statusBadge = '<span class="badge bg-danger">Absent</span>';
+                    statusClass = 'table-danger';
+                    break;
+                case 'checked_out':
+                    statusBadge = '<span class="badge bg-info">Checked Out</span>';
+                    statusClass = 'table-info';
+                    break;
+                default:
+                    statusBadge = '<span class="badge bg-secondary">Unknown</span>';
+            }
+            
+            html += `
+                <tr class="${statusClass}">
+                    <td>
+                        <strong>${emp.name}</strong><br>
+                        <small class="text-muted">${emp.employee_id}</small>
+                    </td>
+                    <td>${emp.department || '-'}</td>
+                    <td>${statusBadge}</td>
+                    <td>
+                        <span class="badge ${emp.not_present_count >= 2 ? 'bg-danger' : emp.not_present_count >= 1 ? 'bg-warning text-dark' : 'bg-success'}">
+                            ${emp.not_present_count}/3
+                        </span>
+                    </td>
+                    <td>${emp.last_seen || 'Never'}</td>
+                    <td>${emp.checkin_time || '-'}</td>
+                    <td>${emp.checkout_time || '-'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="resetEmployeeTracking(${emp.id})" title="Reset tracking">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        tbody.innerHTML = html;
+    }
+    
+    // Update presence statistics cards
+    function updatePresenceStats(stats) {
+        document.getElementById('trackingPresent').textContent = stats.present || 0;
+        document.getElementById('trackingWarning').textContent = stats.warning || 0;
+        document.getElementById('trackingAbsent').textContent = stats.absent || 0;
+        document.getElementById('trackingCheckedOut').textContent = stats.checked_out || 0;
+    }
+    
+    // Toggle auto-scan
+    function toggleAutoScan() {
+        const icon = document.getElementById('autoScanIcon');
+        const text = document.getElementById('autoScanText');
+        
+        if (autoScanActive) {
+            // Stop auto-scan
+            clearInterval(autoScanInterval);
+            autoScanActive = false;
+            icon.className = 'bi bi-play-fill';
+            text.textContent = 'Start Auto-Scan';
+            showToast('Auto-Scan Stopped', 'Automatic presence scanning disabled', 'info');
+        } else {
+            // Start auto-scan
+            autoScanActive = true;
+            icon.className = 'bi bi-pause-fill';
+            text.textContent = 'Stop Auto-Scan (15 min)';
+            
+            // Run immediately
+            runPresenceScan();
+            
+            // Then every 15 minutes
+            autoScanInterval = setInterval(runPresenceScan, SCAN_INTERVAL);
+            showToast('Auto-Scan Started', 'Will scan every 15 minutes automatically', 'success');
+        }
+    }
+    
+    // Reset tracking for a single employee
+    async function resetEmployeeTracking(employeeId) {
+        if (!confirm('Reset tracking for this employee?')) return;
+        
+        try {
+            const response = await fetch('{% url "recognition:reset_presence_tracking" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ employee_id: employeeId })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('Success', 'Tracking reset for employee', 'success');
+                refreshPresenceStatus();
+            } else {
+                showToast('Error', data.message || 'Failed to reset', 'danger');
+            }
+        } catch (error) {
+            showToast('Error', 'Failed to reset tracking', 'danger');
+        }
+    }
+    
+    // Load attendance statistics
+    async function loadAttendanceStats() {
+        try {
+            const response = await fetch('{% url "recognition:attendance_statistics" %}');
+            const data = await response.json();
+            
+            if (data.success) {
+                const avgHours = data.stats.avg_work_hours;
+                document.getElementById('avgWorkHours').textContent = 
+                    avgHours ? `${avgHours.toFixed(1)} hrs` : '--';
+            }
+        } catch (error) {
+            console.error('Error loading stats:', error);
+        }
+    }
+    
+    // Get CSRF token from cookies
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // Load presence status and stats on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        refreshPresenceStatus();
+        loadAttendanceStats();
+    });
+</script>
+{% endblock %}

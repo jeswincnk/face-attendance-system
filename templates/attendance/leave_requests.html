@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Leave Requests{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-calendar-x"></i> Leave Requests</h2>
+    </div>
+
+    <!-- Filter Buttons -->
+    <div class="btn-group mb-4" role="group">
+        <a href="?status=all" class="btn btn-{% if status_filter == 'all' %}primary{% else %}outline-primary{% endif %}">All</a>
+        <a href="?status=pending" class="btn btn-{% if status_filter == 'pending' %}warning{% else %}outline-warning{% endif %}">Pending</a>
+        <a href="?status=approved" class="btn btn-{% if status_filter == 'approved' %}success{% else %}outline-success{% endif %}">Approved</a>
+        <a href="?status=rejected" class="btn btn-{% if status_filter == 'rejected' %}danger{% else %}outline-danger{% endif %}">Rejected</a>
+    </div>
+
+    <!-- Leave Requests List -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-list-ul"></i> Leave Requests</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>Leave Type</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Days</th>
+                            <th>Reason</th>
+                            <th>Status</th>
+                            <th>Approved By</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for leave in leave_requests %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    {% if leave.employee.photo %}
+                                        <img src="{{ leave.employee.photo.url }}" class="rounded-circle me-2" style="width: 35px; height: 35px; object-fit: cover;">
+                                    {% else %}
+                                        <div class="rounded-circle bg-secondary me-2 d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;">
+                                            <i class="bi bi-person-fill text-white"></i>
+                                        </div>
+                                    {% endif %}
+                                    <div>
+                                        <strong>{{ leave.employee.full_name }}</strong>
+                                        <br><small class="text-muted">{{ leave.employee.employee_id }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ leave.leave_type }}</td>
+                            <td>{{ leave.start_date|date:"M d, Y" }}</td>
+                            <td>{{ leave.end_date|date:"M d, Y" }}</td>
+                            <td>
+                                {% widthratio leave.end_date|timeuntil:leave.start_date 1 1 as days %}
+                                {{ days }} days
+                            </td>
+                            <td>
+                                <span title="{{ leave.reason }}">
+                                    {{ leave.reason|truncatewords:5 }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if leave.status == 'PENDING' %}
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                {% elif leave.status == 'APPROVED' %}
+                                    <span class="badge bg-success">Approved</span>
+                                {% elif leave.status == 'REJECTED' %}
+                                    <span class="badge bg-danger">Rejected</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ leave.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if leave.approved_by %}
+                                    {{ leave.approved_by.full_name }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if leave.status == 'PENDING' %}
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-success" title="Approve">
+                                            <i class="bi bi-check"></i>
+                                        </button>
+                                        <button class="btn btn-danger" title="Reject">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-4">
+                                <i class="bi bi-inbox fs-1"></i>
+                                <p class="mt-2">No leave requests found</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

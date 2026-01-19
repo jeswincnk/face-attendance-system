@@ -1,0 +1,587 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Recognition & Attendance Settings{% endblock %}
+
+{% block extra_css %}
+<style>
+    .settings-card {
+        transition: all 0.3s ease;
+        border-left: 4px solid transparent;
+    }
+    .settings-card:hover {
+        border-left-color: #0d6efd;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .setting-item {
+        padding: 12px 0;
+        border-bottom: 1px solid #eee;
+    }
+    .setting-item:last-child {
+        border-bottom: none;
+    }
+    .setting-label {
+        font-weight: 600;
+        color: #333;
+    }
+    .setting-description {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    .range-value {
+        display: inline-block;
+        min-width: 50px;
+        text-align: center;
+        font-weight: bold;
+        color: #0d6efd;
+    }
+    .section-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 12px 20px;
+        border-radius: 10px 10px 0 0;
+        margin: -1px -1px 15px -1px;
+    }
+    .section-header-green {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+    .section-header-purple {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    /* Multi-select dropdown styles */
+    .dropdown-check-list {
+        display: inline-block;
+        width: 100%;
+    }
+    .dropdown-check-list .anchor {
+        position: relative;
+        cursor: pointer;
+        display: block;
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        background-color: #fff;
+        transition: border-color 0.15s ease-in-out;
+    }
+    .dropdown-check-list .anchor:hover {
+        border-color: #86b7fe;
+    }
+    .dropdown-check-list .anchor:after {
+        position: absolute;
+        content: "";
+        border-left: 2px solid #333;
+        border-top: 2px solid #333;
+        padding: 5px;
+        right: 12px;
+        top: 35%;
+        transform: rotate(-135deg);
+        transition: transform 0.2s ease;
+    }
+    .dropdown-check-list.visible .anchor:after {
+        transform: rotate(45deg);
+        top: 45%;
+    }
+    .dropdown-check-list ul.items {
+        padding: 8px;
+        display: none;
+        margin: 0;
+        border: 1px solid #ced4da;
+        border-top: none;
+        border-radius: 0 0 6px 6px;
+        background-color: #fff;
+        max-height: 200px;
+        overflow-y: auto;
+        position: absolute;
+        z-index: 1000;
+        width: 100%;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .dropdown-check-list.visible ul.items {
+        display: block;
+    }
+    .dropdown-check-list ul.items li {
+        list-style: none;
+        padding: 5px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+    }
+    .dropdown-check-list ul.items li:hover {
+        background-color: #f0f0f0;
+    }
+    .dropdown-check-list ul.items li.select-all {
+        border-bottom: 1px solid #dee2e6;
+        margin-bottom: 5px;
+        padding-bottom: 8px;
+        font-weight: 600;
+    }
+    .dropdown-check-list ul.items li label {
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        margin: 0;
+        width: 100%;
+    }
+    .dropdown-check-list ul.items li label input {
+        margin-right: 8px;
+    }
+    .selected-count {
+        background-color: #667eea;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        margin-left: 8px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2><i class="bi bi-gear-fill"></i> Recognition & Attendance Settings</h2>
+            <p class="text-muted">Configure face recognition parameters, attendance rules, and employee working hours</p>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'recognition:live_recognition' %}" class="btn btn-primary">
+                <i class="bi bi-camera-video"></i> Live Recognition
+            </a>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Row 1: Face Recognition & Default Attendance Settings -->
+    <div class="row">
+        <!-- Face Recognition Settings -->
+        <div class="col-lg-6 mb-4">
+            <div class="card settings-card shadow h-100">
+                <div class="section-header">
+                    <h5 class="mb-0"><i class="bi bi-cpu"></i> Face Recognition Parameters</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Recognition Threshold -->
+                    <div class="setting-item">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <span class="setting-label">Recognition Threshold</span>
+                                <p class="setting-description mb-0">Lower = stricter, Higher = lenient</p>
+                            </div>
+                            <span class="range-value" id="thresholdValue">{{ settings.recognition_threshold }}</span>
+                        </div>
+                        <input type="range" class="form-range" min="30" max="100" step="5" 
+                               value="{{ settings.recognition_threshold }}" id="recognitionThreshold"
+                               onchange="updateSetting('recognition_threshold', this.value)">
+                        <div class="d-flex justify-content-between text-muted small">
+                            <span>Strict (30)</span>
+                            <span>Default (65)</span>
+                            <span>Lenient (100)</span>
+                        </div>
+                    </div>
+
+                    <!-- Re-recognition Cooldown -->
+                    <div class="setting-item">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <span class="setting-label">Re-recognition Cooldown</span>
+                                <p class="setting-description mb-0">Time before same person can be marked again</p>
+                            </div>
+                            <span class="range-value" id="cooldownValue">{{ settings.cooldown_seconds }}s</span>
+                        </div>
+                        <input type="range" class="form-range" min="60" max="600" step="30" 
+                               value="{{ settings.cooldown_seconds }}" id="cooldownSeconds"
+                               onchange="updateSetting('cooldown_seconds', this.value)">
+                        <div class="d-flex justify-content-between text-muted small">
+                            <span>1 min</span>
+                            <span>5 min</span>
+                            <span>10 min</span>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info mt-3 mb-0 small">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Tip:</strong> If recognition is too sensitive, lower the threshold. If it's missing faces, raise it.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Default Attendance Settings -->
+        <div class="col-lg-6 mb-4">
+            <div class="card settings-card shadow h-100">
+                <div class="section-header section-header-green">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> Default Attendance Rules</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="setting-item">
+                                <span class="setting-label">Work Start Time</span>
+                                <input type="time" class="form-control form-control-sm mt-1" id="workStartTime" 
+                                       value="{{ settings.work_start_time }}"
+                                       onchange="updateSetting('work_start_time', this.value)">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="setting-item">
+                                <span class="setting-label">Work End Time</span>
+                                <input type="time" class="form-control form-control-sm mt-1" id="workEndTime" 
+                                       value="{{ settings.work_end_time }}"
+                                       onchange="updateSetting('work_end_time', this.value)">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="setting-item">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <span class="setting-label">Late Threshold</span>
+                            <span class="range-value" id="lateValue">{{ settings.late_threshold_minutes }} min</span>
+                        </div>
+                        <input type="range" class="form-range" min="5" max="60" step="5" 
+                               value="{{ settings.late_threshold_minutes }}" id="lateThreshold"
+                               onchange="updateSetting('late_threshold_minutes', this.value)">
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="setting-item">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <span class="setting-label">Full Day Hours</span>
+                                    <span class="range-value" id="fullDayValue">{{ settings.full_day_hours }}h</span>
+                                </div>
+                                <input type="range" class="form-range" min="4" max="12" step="0.5" 
+                                       value="{{ settings.full_day_hours }}" id="fullDayHours"
+                                       onchange="updateSetting('full_day_hours', this.value)">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="setting-item">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <span class="setting-label">Half Day Hours</span>
+                                    <span class="range-value" id="halfDayValue">{{ settings.half_day_hours }}h</span>
+                                </div>
+                                <input type="range" class="form-range" min="2" max="6" step="0.5" 
+                                       value="{{ settings.half_day_hours }}" id="halfDayHours"
+                                       onchange="updateSetting('half_day_hours', this.value)">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <div class="d-flex flex-wrap gap-1">
+                            <span class="badge bg-success small"><i class="bi bi-check"></i> PRESENT</span>
+                            <span class="badge bg-warning text-dark small"><i class="bi bi-clock"></i> LATE</span>
+                            <span class="badge bg-danger small"><i class="bi bi-x"></i> ABSENT</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 2: Bulk Assign Custom Hours & System Status -->
+    <div class="row">
+        <!-- Bulk Assign Custom Hours -->
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow h-100">
+                <div class="card-header text-white" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-people-fill"></i> Bulk Assign Custom Working Hours</h5>
+                        <span class="badge bg-light text-dark">{{ employees.count }} Employees</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="bulkAssignForm" action="{% url 'attendance:settings' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="bulk_assign">
+                        <input type="hidden" name="selected_employees" id="selectedEmployeesInput" value="">
+                        
+                        <div class="row align-items-end">
+                            <!-- Employee Selection Dropdown -->
+                            <div class="col-12 mb-3">
+                                <label class="form-label fw-bold">Select Employees</label>
+                                <div id="employeeDropdown" class="dropdown-check-list" tabindex="100">
+                                    <span class="anchor">
+                                        <i class="bi bi-people me-2"></i>
+                                        <span id="selectedText">Choose employees...</span>
+                                        <span id="selectedCount" class="selected-count" style="display: none;">0</span>
+                                    </span>
+                                    <ul class="items">
+                                        <li class="select-all">
+                                            <label>
+                                                <input type="checkbox" id="selectAllEmployees" onchange="toggleSelectAll()">
+                                                Select All Employees
+                                            </label>
+                                        </li>
+                                        {% for employee in employees %}
+                                        <li>
+                                            <label>
+                                                <input type="checkbox" class="employee-checkbox" value="{{ employee.id }}" 
+                                                       data-name="{{ employee.full_name }}" onchange="updateSelectedCount()">
+                                                {{ employee.full_name }} <small class="text-muted">({{ employee.employee_id }})</small>
+                                            </label>
+                                        </li>
+                                        {% empty %}
+                                        <li class="text-muted text-center py-2">No employees found</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row align-items-end">
+                            <!-- Work Start Time -->
+                            <div class="col-md-3 col-6 mb-3">
+                                <label class="form-label">Work Start</label>
+                                <input type="time" name="bulk_check_in_time" id="bulkCheckIn" class="form-control" required>
+                            </div>
+
+                            <!-- Work End Time -->
+                            <div class="col-md-3 col-6 mb-3">
+                                <label class="form-label">Work End</label>
+                                <input type="time" name="bulk_check_out_time" id="bulkCheckOut" class="form-control" required>
+                            </div>
+
+                            <!-- Full Day Hours -->
+                            <div class="col-md-2 col-6 mb-3">
+                                <label class="form-label">Full Day</label>
+                                <input type="number" name="bulk_full_day_hours" id="bulkFullDay" class="form-control" 
+                                       step="0.5" min="1" max="24" placeholder="8">
+                            </div>
+
+                            <!-- Half Day Hours -->
+                            <div class="col-md-2 col-6 mb-3">
+                                <label class="form-label">Half Day</label>
+                                <input type="number" name="bulk_half_day_hours" id="bulkHalfDay" class="form-control" 
+                                       step="0.5" min="1" max="12" placeholder="4">
+                            </div>
+
+                            <!-- Submit Button -->
+                            <div class="col-md-2 col-12 mb-3">
+                                <button type="submit" class="btn btn-primary w-100" id="bulkAssignBtn" disabled>
+                                    <i class="bi bi-check2-all"></i> Apply (<span id="btnCount">0</span>)
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow h-100">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> System Status</h5>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-center">
+                    <div class="row text-center g-3">
+                        <div class="col-6">
+                            <div class="border rounded p-3">
+                                <i class="bi bi-people fs-2 text-primary"></i>
+                                <h4 id="enrolledCount" class="mb-0">-</h4>
+                                <small class="text-muted">Enrolled</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-3">
+                                <i class="bi bi-image fs-2 text-success"></i>
+                                <h4 id="encodingCount" class="mb-0">-</h4>
+                                <small class="text-muted">Encodings</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-3">
+                                <i class="bi bi-camera-video fs-2 text-info"></i>
+                                <h4 id="cameraStatus" class="mb-0">-</h4>
+                                <small class="text-muted">Camera</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-3">
+                                <i class="bi bi-calendar-check fs-2 text-warning"></i>
+                                <h4 id="todayAttendance" class="mb-0">-</h4>
+                                <small class="text-muted">Today</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast for save notifications -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="saveToast" class="toast" role="alert">
+        <div class="toast-header">
+            <i class="bi bi-check-circle text-success me-2"></i>
+            <strong class="me-auto">Settings Saved</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="toastMessage">
+            Setting updated successfully!
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Update range display values
+    document.getElementById('recognitionThreshold').addEventListener('input', function() {
+        document.getElementById('thresholdValue').textContent = this.value;
+    });
+    document.getElementById('cooldownSeconds').addEventListener('input', function() {
+        document.getElementById('cooldownValue').textContent = this.value + 's';
+    });
+    document.getElementById('lateThreshold').addEventListener('input', function() {
+        document.getElementById('lateValue').textContent = this.value + ' min';
+    });
+    document.getElementById('fullDayHours').addEventListener('input', function() {
+        document.getElementById('fullDayValue').textContent = this.value + 'h';
+    });
+    document.getElementById('halfDayHours').addEventListener('input', function() {
+        document.getElementById('halfDayValue').textContent = this.value + 'h';
+    });
+
+    // Update setting via AJAX
+    async function updateSetting(settingName, value) {
+        try {
+            const response = await fetch('{% url "recognition:update_settings" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    setting: settingName,
+                    value: value
+                })
+            });
+            
+            const data = await response.json();
+            
+            document.getElementById('toastMessage').textContent = data.message;
+            const toast = new bootstrap.Toast(document.getElementById('saveToast'));
+            toast.show();
+            
+        } catch (error) {
+            console.error('Error updating setting:', error);
+            alert('Failed to update setting');
+        }
+    }
+
+    // ========== Bulk Assign Dropdown ==========
+    const dropdown = document.getElementById('employeeDropdown');
+    if (dropdown) {
+        dropdown.querySelector('.anchor').addEventListener('click', function(e) {
+            dropdown.classList.toggle('visible');
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!dropdown.contains(e.target)) {
+                dropdown.classList.remove('visible');
+            }
+        });
+    }
+
+    function toggleSelectAll() {
+        const selectAllCheckbox = document.getElementById('selectAllEmployees');
+        const employeeCheckboxes = document.querySelectorAll('.employee-checkbox');
+        
+        employeeCheckboxes.forEach(cb => {
+            cb.checked = selectAllCheckbox.checked;
+        });
+        
+        updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+        const employeeCheckboxes = document.querySelectorAll('.employee-checkbox');
+        const selectedCheckboxes = document.querySelectorAll('.employee-checkbox:checked');
+        const count = selectedCheckboxes.length;
+        const total = employeeCheckboxes.length;
+        
+        const countBadge = document.getElementById('selectedCount');
+        const btnCount = document.getElementById('btnCount');
+        const selectedText = document.getElementById('selectedText');
+        const bulkAssignBtn = document.getElementById('bulkAssignBtn');
+        const selectAllCheckbox = document.getElementById('selectAllEmployees');
+        
+        if (count > 0) {
+            countBadge.style.display = 'inline';
+            countBadge.textContent = count;
+            selectedText.textContent = count + ' employee' + (count > 1 ? 's' : '') + ' selected';
+            bulkAssignBtn.disabled = false;
+        } else {
+            countBadge.style.display = 'none';
+            selectedText.textContent = 'Choose employees...';
+            bulkAssignBtn.disabled = true;
+        }
+        
+        btnCount.textContent = count;
+        
+        if (selectAllCheckbox) {
+            selectAllCheckbox.checked = count === total && total > 0;
+            selectAllCheckbox.indeterminate = count > 0 && count < total;
+        }
+        
+        const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+        document.getElementById('selectedEmployeesInput').value = selectedIds.join(',');
+    }
+
+    // Bulk form validation
+    const bulkForm = document.getElementById('bulkAssignForm');
+    if (bulkForm) {
+        bulkForm.addEventListener('submit', function(e) {
+            const selectedCount = document.querySelectorAll('.employee-checkbox:checked').length;
+            if (selectedCount === 0) {
+                e.preventDefault();
+                alert('Please select at least one employee.');
+                return false;
+            }
+            
+            const checkIn = document.getElementById('bulkCheckIn').value;
+            const checkOut = document.getElementById('bulkCheckOut').value;
+            
+            if (!checkIn || !checkOut) {
+                e.preventDefault();
+                alert('Please enter both Work Start and End times.');
+                return false;
+            }
+            
+            return confirm('Apply custom hours to ' + selectedCount + ' employee(s)?');
+        });
+    }
+
+    // Load system status
+    async function loadSystemStatus() {
+        try {
+            const response = await fetch('{% url "recognition:get_recognition_status" %}');
+            const data = await response.json();
+            
+            document.getElementById('enrolledCount').textContent = data.total_employees || 0;
+            document.getElementById('todayAttendance').textContent = data.present_today || 0;
+            document.getElementById('encodingCount').textContent = '-';
+            document.getElementById('cameraStatus').textContent = 'Ready';
+            
+        } catch (error) {
+            console.error('Error loading status:', error);
+        }
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadSystemStatus();
+        updateSelectedCount();
+    });
+</script>
+{% endblock %}

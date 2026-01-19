@@ -1,0 +1,202 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Attendance System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <h1><i class="bi bi-speedometer2"></i> Dashboard Overview</h1>
+            <p class="text-muted">{{ today|date:"l, F j, Y" }}</p>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-people"></i> Total Employees</h5>
+                    <h2 class="mb-0">{{ total_employees }}</h2>
+                    <small>{{ active_employees }} active</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-check-circle"></i> Present Today</h5>
+                    <h2 class="mb-0">{{ present_today }}</h2>
+                    <small>{{ late_today }} late arrivals</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-x-circle"></i> Absent Today</h5>
+                    <h2 class="mb-0">{{ absent_today }}</h2>
+                    <small>Out of {{ active_employees }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-calendar-event"></i> Pending Leaves</h5>
+                    <h2 class="mb-0">{{ pending_leaves }}</h2>
+                    <small>Requests to review</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Daily Attendance Trend -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="bi bi-graph-up"></i> 7-Day Attendance Trend</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Present</th>
+                                    <th>Chart</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for day in daily_trend %}
+                                <tr>
+                                    <td>{{ day.date }}</td>
+                                    <td>{{ day.count }}</td>
+                                    <td>
+                                        <div class="progress" style="height: 20px;">
+                                            {% if active_employees > 0 %}
+                                            <div class="progress-bar bg-success" role="progressbar" 
+                                                 style="width: {% widthratio day.count active_employees 100 %}%">
+                                            </div>
+                                            {% else %}
+                                            <div class="progress-bar bg-secondary" role="progressbar" style="width: 0%">
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Check-ins -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Check-ins</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        {% for record in recent_checkins %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ record.employee.full_name }}</strong>
+                                <br>
+                                <small class="text-muted">{{ record.employee.department.name|default:"N/A" }}</small>
+                            </div>
+                            <div class="text-end">
+                                {% if record.status == 'LATE' %}
+                                <span class="badge bg-warning">
+                                {% else %}
+                                <span class="badge bg-success">
+                                {% endif %}
+                                    {{ record.status }}
+                                </span>
+                                <br>
+                                <small class="text-muted">{{ record.check_in|time:"h:i A" }}</small>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="list-group-item text-center text-muted">
+                            No check-ins yet today
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Department-wise Attendance -->
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="bi bi-building"></i> Department-wise Attendance</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for dept in departments_stats %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">{{ dept.name }}</h6>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Present: {{ dept.present }}/{{ dept.total }}</span>
+                                        <span class="badge bg-primary">{{ dept.percentage }}%</span>
+                                    </div>
+                                    <div class="progress">
+                                        <div class="progress-bar" role="progressbar" 
+                                             style="width: {{ dept.percentage }}%">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row g-4 mt-2">
+        <div class="col-md-3">
+            <a href="{% url 'enrollment:employee_create' %}" class="card text-decoration-none text-center">
+                <div class="card-body">
+                    <i class="bi bi-person-plus display-4 text-primary"></i>
+                    <h5 class="mt-2">Add Employee</h5>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="{% url 'recognition:live_recognition' %}" class="card text-decoration-none text-center">
+                <div class="card-body">
+                    <i class="bi bi-webcam display-4 text-success"></i>
+                    <h5 class="mt-2">Start Recognition</h5>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="{% url 'attendance:attendance_record_date' %}" class="card text-decoration-none text-center">
+                <div class="card-body">
+                    <i class="bi bi-calendar-check display-4 text-info"></i>
+                    <h5 class="mt-2">View Attendance</h5>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="{% url 'reports:attendance_report' %}" class="card text-decoration-none text-center">
+                <div class="card-body">
+                    <i class="bi bi-file-earmark-bar-graph display-4 text-warning"></i>
+                    <h5 class="mt-2">Generate Report</h5>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

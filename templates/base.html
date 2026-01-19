@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Face Recognition Attendance System{% endblock %}</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    {% block extra_css %}{% endblock %}
+    
+    <style>
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .main-content {
+            flex: 1;
+            padding: 2rem 0;
+        }
+        .navbar-brand {
+            font-weight: bold;
+        }
+        .sidebar {
+            min-height: calc(100vh - 56px);
+            background-color: #f8f9fa;
+        }
+        .card {
+            transition: transform 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{% if request.user.is_authenticated %}{% url 'accounts:employee_portal' %}{% else %}{% url 'home' %}{% endif %}">
+                <i class="bi bi-camera-video"></i> Attendance System
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    {% if request.user.is_authenticated %}
+                        {% if is_admin %}
+                            <!-- Admin Navigation -->
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'home' %}">
+                                    <i class="bi bi-speedometer2"></i> Dashboard
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'enrollment:employee_list' %}">
+                                    <i class="bi bi-people"></i> Employees
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'recognition:live_recognition' %}">
+                                    <i class="bi bi-webcam"></i> Live Tracking
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'attendance:attendance_dashboard' %}">
+                                    <i class="bi bi-calendar-check"></i> Attendance
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'reports:home' %}">
+                                    <i class="bi bi-file-earmark-text"></i> Reports
+                                </a>
+                            </li>
+                        {% elif has_employee_profile %}
+                            <!-- Employee Navigation -->
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'accounts:employee_portal' %}">
+                                    <i class="bi bi-house"></i> My Portal
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'accounts:self_checkin' %}">
+                                    <i class="bi bi-camera-video"></i> Check In
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'accounts:my_attendance' %}">
+                                    <i class="bi bi-journal-text"></i> My Attendance
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'accounts:employee_profile' %}">
+                                    <i class="bi bi-person"></i> Profile
+                                </a>
+                            </li>
+                        {% else %}
+                            <!-- User without employee profile - show basic nav -->
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'home' %}">
+                                    <i class="bi bi-speedometer2"></i> Dashboard
+                                </a>
+                            </li>
+                        {% endif %}
+                    {% else %}
+                        <!-- Guest Navigation -->
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'home' %}">
+                                <i class="bi bi-speedometer2"></i> Dashboard
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav">
+                    {% if request.user.is_authenticated %}
+                        {% if is_admin %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'recognition:recognition_settings' %}">
+                                    <i class="bi bi-sliders"></i> Settings
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="/admin/">
+                                    <i class="bi bi-gear"></i> Admin
+                                </a>
+                            </li>
+                        {% endif %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                                <i class="bi bi-person-circle"></i> {{ request.user.first_name|default:request.user.username }}
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                {% if has_employee_profile %}
+                                    <li><a class="dropdown-item" href="{% url 'accounts:employee_profile' %}"><i class="bi bi-person"></i> Profile</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                {% endif %}
+                                <li><a class="dropdown-item text-danger" href="{% url 'accounts:logout' %}"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'accounts:login' %}">
+                                <i class="bi bi-box-arrow-in-right"></i> Login
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Messages -->
+    {% if messages %}
+        <div class="container mt-3">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Main Content -->
+    <div class="main-content">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-light text-center text-muted py-3 mt-auto">
+        <div class="container">
+            <p class="mb-0">© 2026 Face Recognition Attendance System | Powered by Django & OpenCV</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

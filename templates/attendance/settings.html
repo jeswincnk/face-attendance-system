@@ -1,0 +1,514 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Attendance Settings{% endblock %}
+
+{% block extra_css %}
+<style>
+    .employee-row.custom-enabled {
+        background-color: rgba(102, 126, 234, 0.1) !important;
+    }
+    .custom-hours-fields {
+        display: none;
+    }
+    .custom-hours-fields.show {
+        display: table-cell;
+    }
+    .toggle-custom:checked + .slider {
+        background-color: #667eea;
+    }
+    /* Multi-select dropdown styles */
+    .dropdown-check-list {
+        display: inline-block;
+        width: 100%;
+    }
+    .dropdown-check-list .anchor {
+        position: relative;
+        cursor: pointer;
+        display: block;
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        background-color: #fff;
+        transition: border-color 0.15s ease-in-out;
+    }
+    .dropdown-check-list .anchor:hover {
+        border-color: #86b7fe;
+    }
+    .dropdown-check-list .anchor:after {
+        position: absolute;
+        content: "";
+        border-left: 2px solid #333;
+        border-top: 2px solid #333;
+        padding: 5px;
+        right: 12px;
+        top: 35%;
+        transform: rotate(-135deg);
+        transition: transform 0.2s ease;
+    }
+    .dropdown-check-list.visible .anchor:after {
+        transform: rotate(45deg);
+        top: 45%;
+    }
+    .dropdown-check-list ul.items {
+        padding: 8px;
+        display: none;
+        margin: 0;
+        border: 1px solid #ced4da;
+        border-top: none;
+        border-radius: 0 0 6px 6px;
+        background-color: #fff;
+        max-height: 250px;
+        overflow-y: auto;
+        position: absolute;
+        z-index: 1000;
+        width: 100%;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .dropdown-check-list.visible ul.items {
+        display: block;
+    }
+    .dropdown-check-list ul.items li {
+        list-style: none;
+        padding: 6px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
+    .dropdown-check-list ul.items li:hover {
+        background-color: #f0f0f0;
+    }
+    .dropdown-check-list ul.items li.select-all {
+        border-bottom: 1px solid #dee2e6;
+        margin-bottom: 5px;
+        padding-bottom: 10px;
+        font-weight: 600;
+    }
+    .dropdown-check-list ul.items li label {
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        margin: 0;
+        width: 100%;
+    }
+    .dropdown-check-list ul.items li label input {
+        margin-right: 10px;
+    }
+    .selected-count {
+        background-color: #667eea;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        margin-left: 8px;
+    }
+    .bulk-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h2><i class="bi bi-gear"></i> Attendance Settings</h2>
+    <p class="text-muted">Configure attendance rules and individual employee working hours</p>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <!-- Global Settings -->
+        <div class="col-lg-5">
+            <!-- Bulk Assignment Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header bulk-section text-white">
+                    <h5 class="mb-0"><i class="bi bi-people-fill"></i> Bulk Assign Custom Hours</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">Select multiple employees and set custom working hours for all of them at once.</p>
+                    <form method="post" id="bulkAssignForm">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="bulk_assign">
+                        <input type="hidden" name="selected_employees" id="selectedEmployeesInput" value="">
+                        
+                        <!-- Multi-select Dropdown -->
+                        <div class="mb-3 position-relative">
+                            <label class="form-label fw-bold">Select Employees</label>
+                            <div id="employeeDropdown" class="dropdown-check-list" tabindex="100">
+                                <span class="anchor">
+                                    <i class="bi bi-people me-2"></i>
+                                    <span id="selectedText">Choose employees...</span>
+                                    <span id="selectedCount" class="selected-count" style="display: none;">0</span>
+                                </span>
+                                <ul class="items">
+                                    <li class="select-all">
+                                        <label>
+                                            <input type="checkbox" id="selectAllEmployees" onchange="toggleSelectAll()">
+                                            Select All Employees
+                                        </label>
+                                    </li>
+                                    {% for employee in employees %}
+                                    <li>
+                                        <label>
+                                            <input type="checkbox" class="employee-checkbox" value="{{ employee.id }}" 
+                                                   data-name="{{ employee.full_name }}" onchange="updateSelectedCount()">
+                                            {{ employee.full_name }} <small class="text-muted">({{ employee.employee_id }})</small>
+                                        </label>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Work Start Time</label>
+                                    <input type="time" name="bulk_check_in_time" id="bulkCheckIn" class="form-control" required>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Work End Time</label>
+                                    <input type="time" name="bulk_check_out_time" id="bulkCheckOut" class="form-control" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Full Day Hours</label>
+                                    <input type="number" name="bulk_full_day_hours" id="bulkFullDay" class="form-control" 
+                                           step="0.5" min="1" max="24" placeholder="Optional">
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Half Day Hours</label>
+                                    <input type="number" name="bulk_half_day_hours" id="bulkHalfDay" class="form-control" 
+                                           step="0.5" min="1" max="12" placeholder="Optional">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary" id="bulkAssignBtn" disabled>
+                                <i class="bi bi-check2-all"></i> Apply to Selected (<span id="btnCount">0</span>)
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-sliders"></i> Default Time Settings</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="global_settings">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Standard Check-In Time</label>
+                                    <input type="time" name="standard_check_in_time" class="form-control" 
+                                           value="{{ settings.standard_check_in_time|time:'H:i' }}" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Standard Check-Out Time</label>
+                                    <input type="time" name="standard_check_out_time" class="form-control" 
+                                           value="{{ settings.standard_check_out_time|time:'H:i' }}" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Late Threshold (min)</label>
+                                    <input type="number" name="late_threshold_minutes" class="form-control" 
+                                           value="{{ settings.late_threshold_minutes }}" min="0" max="60" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Early Departure (min)</label>
+                                    <input type="number" name="early_departure_threshold_minutes" class="form-control" 
+                                           value="{{ settings.early_departure_threshold_minutes }}" min="0" max="60" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Half Day Hours</label>
+                                    <input type="number" name="half_day_hours" class="form-control" 
+                                           value="{{ settings.half_day_hours }}" min="1" max="12" step="0.5" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Full Day Hours</label>
+                                    <input type="number" name="full_day_hours" class="form-control" 
+                                           value="{{ settings.full_day_hours }}" min="1" max="24" step="0.5" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg"></i> Save Default Settings
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Info Card -->
+            <div class="card mt-4 shadow">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> How It Works</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0 small">
+                        <li><strong>Default Settings:</strong> Applied to all employees unless custom hours are enabled.</li>
+                        <li><strong>Custom Hours:</strong> Enable the checkbox for an employee to set individual working hours.</li>
+                        <li><strong>Late Threshold:</strong> Minutes after check-in time to mark as "Late".</li>
+                        <li><strong>Full/Half Day:</strong> Minimum hours to count as full or half day attendance.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Individual Employee Settings -->
+        <div class="col-lg-7">
+            <div class="card shadow">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-people"></i> Individual Employee Hours</h5>
+                    <span class="badge bg-light text-dark">{{ employees.count }} Employees</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="width: 30%;">Employee</th>
+                                    <th style="width: 10%;" class="text-center">Custom</th>
+                                    <th style="width: 15%;">Check-In</th>
+                                    <th style="width: 15%;">Check-Out</th>
+                                    <th style="width: 10%;">Full Day</th>
+                                    <th style="width: 10%;">Half Day</th>
+                                    <th style="width: 10%;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for employee in employees %}
+                                <tr class="employee-row {% if employee.use_custom_hours %}custom-enabled{% endif %}" id="row-{{ employee.id }}">
+                                    <form method="post" id="form-{{ employee.id }}">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="employee_settings">
+                                        <input type="hidden" name="employee_id" value="{{ employee.id }}">
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                {% if employee.photo %}
+                                                    <img src="{{ employee.photo.url }}" class="rounded-circle me-2" style="width: 32px; height: 32px; object-fit: cover;">
+                                                {% else %}
+                                                    <div class="rounded-circle bg-secondary me-2 d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                                                        <i class="bi bi-person text-white small"></i>
+                                                    </div>
+                                                {% endif %}
+                                                <div>
+                                                    <strong class="small">{{ employee.full_name }}</strong><br>
+                                                    <small class="text-muted">{{ employee.employee_id }}</small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-switch d-flex justify-content-center">
+                                                <input class="form-check-input toggle-custom" type="checkbox" name="use_custom_hours" 
+                                                       id="custom-{{ employee.id }}" 
+                                                       {% if employee.use_custom_hours %}checked{% endif %}
+                                                       onchange="toggleCustomFields({{ employee.id }})">
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <input type="time" name="custom_check_in_time" 
+                                                   class="form-control form-control-sm custom-field-{{ employee.id }}"
+                                                   value="{{ employee.custom_check_in_time|time:'H:i'|default:'' }}"
+                                                   {% if not employee.use_custom_hours %}disabled{% endif %}
+                                                   placeholder="{{ settings.standard_check_in_time|time:'H:i' }}">
+                                        </td>
+                                        <td>
+                                            <input type="time" name="custom_check_out_time" 
+                                                   class="form-control form-control-sm custom-field-{{ employee.id }}"
+                                                   value="{{ employee.custom_check_out_time|time:'H:i'|default:'' }}"
+                                                   {% if not employee.use_custom_hours %}disabled{% endif %}
+                                                   placeholder="{{ settings.standard_check_out_time|time:'H:i' }}">
+                                        </td>
+                                        <td>
+                                            <input type="number" name="custom_full_day_hours" 
+                                                   class="form-control form-control-sm custom-field-{{ employee.id }}"
+                                                   value="{{ employee.custom_full_day_hours|default:'' }}"
+                                                   step="0.5" min="1" max="24"
+                                                   {% if not employee.use_custom_hours %}disabled{% endif %}
+                                                   placeholder="{{ settings.full_day_hours }}">
+                                        </td>
+                                        <td>
+                                            <input type="number" name="custom_half_day_hours" 
+                                                   class="form-control form-control-sm custom-field-{{ employee.id }}"
+                                                   value="{{ employee.custom_half_day_hours|default:'' }}"
+                                                   step="0.5" min="1" max="12"
+                                                   {% if not employee.use_custom_hours %}disabled{% endif %}
+                                                   placeholder="{{ settings.half_day_hours }}">
+                                        </td>
+                                        <td>
+                                            <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-save"></i>
+                                            </button>
+                                        </td>
+                                    </form>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center py-4 text-muted">
+                                        <i class="bi bi-people"></i> No active employees found
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-light">
+                    <small class="text-muted">
+                        <i class="bi bi-lightbulb"></i> <strong>Tip:</strong> Enable "Custom" checkbox to set individual working hours. Leave disabled to use default settings.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Toggle individual employee custom fields
+function toggleCustomFields(employeeId) {
+    const checkbox = document.getElementById('custom-' + employeeId);
+    const fields = document.querySelectorAll('.custom-field-' + employeeId);
+    const row = document.getElementById('row-' + employeeId);
+    
+    fields.forEach(field => {
+        if (checkbox.checked) {
+            field.disabled = false;
+            row.classList.add('custom-enabled');
+        } else {
+            field.disabled = true;
+            field.value = '';
+            row.classList.remove('custom-enabled');
+        }
+    });
+}
+
+// Dropdown toggle
+const dropdown = document.getElementById('employeeDropdown');
+dropdown.querySelector('.anchor').addEventListener('click', function(e) {
+    dropdown.classList.toggle('visible');
+});
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    if (!dropdown.contains(e.target)) {
+        dropdown.classList.remove('visible');
+    }
+});
+
+// Select All functionality
+function toggleSelectAll() {
+    const selectAllCheckbox = document.getElementById('selectAllEmployees');
+    const employeeCheckboxes = document.querySelectorAll('.employee-checkbox');
+    
+    employeeCheckboxes.forEach(cb => {
+        cb.checked = selectAllCheckbox.checked;
+    });
+    
+    updateSelectedCount();
+}
+
+// Update selected count and button state
+function updateSelectedCount() {
+    const employeeCheckboxes = document.querySelectorAll('.employee-checkbox');
+    const selectedCheckboxes = document.querySelectorAll('.employee-checkbox:checked');
+    const count = selectedCheckboxes.length;
+    const total = employeeCheckboxes.length;
+    
+    // Update count badge
+    const countBadge = document.getElementById('selectedCount');
+    const btnCount = document.getElementById('btnCount');
+    const selectedText = document.getElementById('selectedText');
+    const bulkAssignBtn = document.getElementById('bulkAssignBtn');
+    const selectAllCheckbox = document.getElementById('selectAllEmployees');
+    
+    if (count > 0) {
+        countBadge.style.display = 'inline';
+        countBadge.textContent = count;
+        selectedText.textContent = count + ' employee' + (count > 1 ? 's' : '') + ' selected';
+        bulkAssignBtn.disabled = false;
+    } else {
+        countBadge.style.display = 'none';
+        selectedText.textContent = 'Choose employees...';
+        bulkAssignBtn.disabled = true;
+    }
+    
+    btnCount.textContent = count;
+    
+    // Update "Select All" checkbox state
+    selectAllCheckbox.checked = count === total && total > 0;
+    selectAllCheckbox.indeterminate = count > 0 && count < total;
+    
+    // Update hidden input with selected employee IDs
+    const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+    document.getElementById('selectedEmployeesInput').value = selectedIds.join(',');
+}
+
+// Form validation before submit
+document.getElementById('bulkAssignForm').addEventListener('submit', function(e) {
+    const selectedCount = document.querySelectorAll('.employee-checkbox:checked').length;
+    if (selectedCount === 0) {
+        e.preventDefault();
+        alert('Please select at least one employee.');
+        return false;
+    }
+    
+    const checkIn = document.getElementById('bulkCheckIn').value;
+    const checkOut = document.getElementById('bulkCheckOut').value;
+    
+    if (!checkIn || !checkOut) {
+        e.preventDefault();
+        alert('Please enter both Work Start and End times.');
+        return false;
+    }
+    
+    return confirm('Apply custom hours to ' + selectedCount + ' employee(s)?');
+});
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    {% for employee in employees %}
+    toggleCustomFields({{ employee.id }});
+    {% endfor %}
+    updateSelectedCount();
+});
+</script>
+{% endblock %}

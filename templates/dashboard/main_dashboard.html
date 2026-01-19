@@ -1,0 +1,330 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dashboard - Attendance System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+    }
+    .stat-card {
+        border-radius: 15px;
+        border: none;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: all 0.3s;
+        height: 100%;
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+    }
+    .stat-icon {
+        font-size: 2.5rem;
+        opacity: 0.8;
+    }
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    .activity-item {
+        padding: 15px;
+        border-left: 4px solid #667eea;
+        margin-bottom: 10px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        transition: all 0.3s;
+    }
+    .activity-item:hover {
+        background: #e9ecef;
+        transform: translateX(5px);
+    }
+    .dept-progress {
+        margin-bottom: 15px;
+    }
+    .chart-container {
+        position: relative;
+        height: 300px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="dashboard-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1><i class="bi bi-speedometer2"></i> System Dashboard</h1>
+                <p class="mb-0">{{ today|date:"l, F j, Y" }} • Real-time Overview</p>
+            </div>
+            <div class="text-end">
+                <div class="badge bg-light text-dark p-3">
+                    <i class="bi bi-clock"></i> <span id="liveTime"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div class="card-body text-center">
+                    <i class="bi bi-people stat-icon"></i>
+                    <div class="stat-number">{{ total_employees }}</div>
+                    <h6>Total Employees</h6>
+                    <small>{{ active_employees }} active</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card text-white" style="background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);">
+                <div class="card-body text-center">
+                    <i class="bi bi-check-circle stat-icon"></i>
+                    <div class="stat-number">{{ present_today }}</div>
+                    <h6>Present Today</h6>
+                    <small>{{ late_today }} late arrivals</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card text-white" style="background: linear-gradient(135deg, #f56565 0%, #c53030 100%);">
+                <div class="card-body text-center">
+                    <i class="bi bi-x-circle stat-icon"></i>
+                    <div class="stat-number">{{ absent_today }}</div>
+                    <h6>Absent Today</h6>
+                    <small>Out of {{ active_employees }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card text-white" style="background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);">
+                <div class="card-body text-center">
+                    <i class="bi bi-calendar-event stat-icon"></i>
+                    <div class="stat-number">{{ pending_leaves }}</div>
+                    <h6>Pending Leaves</h6>
+                    <small>Requests to review</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Attendance Trend Chart -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="bi bi-graph-up"></i> 7-Day Attendance Trend</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Attendance Distribution -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Today's Status</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mt-3">
+        <!-- Recent Activities -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-activity"></i> Recent Check-ins</h5>
+                    <span class="badge bg-primary">Live</span>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    {% for checkin in recent_checkins %}
+                    <div class="activity-item">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center">
+                                {% if checkin.employee.photo %}
+                                    <img src="{{ checkin.employee.photo.url }}" class="rounded-circle me-3" 
+                                         width="45" height="45" alt="{{ checkin.employee.full_name }}">
+                                {% else %}
+                                    <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-3" 
+                                         style="width: 45px; height: 45px;">
+                                        <i class="bi bi-person-fill text-white"></i>
+                                    </div>
+                                {% endif %}
+                                <div>
+                                    <h6 class="mb-0">{{ checkin.employee.full_name }}</h6>
+                                    <small class="text-muted">{{ checkin.employee.department.name }}</small>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                {% if checkin.status == 'PRESENT' %}
+                                    <span class="badge bg-success">On Time</span>
+                                {% elif checkin.status == 'LATE' %}
+                                    <span class="badge bg-warning">Late</span>
+                                {% endif %}
+                                <div><small class="text-muted">{{ checkin.check_in|date:"g:i A" }}</small></div>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted text-center">No check-ins yet today</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Department Statistics -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="bi bi-building"></i> Department Attendance</h5>
+                </div>
+                <div class="card-body">
+                    {% for dept in departments_stats %}
+                    <div class="dept-progress">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span><strong>{{ dept.name }}</strong></span>
+                            <span>{{ dept.present }}/{{ dept.total }} ({{ dept.percentage }}%)</span>
+                        </div>
+                        <div class="progress" style="height: 25px;">
+                            <div class="progress-bar {% if dept.percentage >= 80 %}bg-success{% elif dept.percentage >= 60 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                 role="progressbar" style="width: {{ dept.percentage }}%">
+                                {{ dept.percentage }}%
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted text-center">No department data available</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row g-4 mt-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-lightning-fill"></i> Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <a href="{% url 'enrollment:employee_list' %}" class="btn btn-outline-primary btn-lg w-100">
+                                <i class="bi bi-person-plus fs-3"></i>
+                                <div class="mt-2">Manage Employees</div>
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{% url 'recognition:live_recognition' %}" class="btn btn-outline-success btn-lg w-100">
+                                <i class="bi bi-camera-video fs-3"></i>
+                                <div class="mt-2">Live Recognition</div>
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{% url 'attendance:attendance_dashboard' %}" class="btn btn-outline-info btn-lg w-100">
+                                <i class="bi bi-calendar-check fs-3"></i>
+                                <div class="mt-2">Attendance Records</div>
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{% url 'reports:attendance_report' %}" class="btn btn-outline-warning btn-lg w-100">
+                                <i class="bi bi-file-earmark-text fs-3"></i>
+                                <div class="mt-2">Generate Reports</div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Live time update
+    function updateTime() {
+        const now = new Date();
+        document.getElementById('liveTime').textContent = now.toLocaleTimeString();
+    }
+    setInterval(updateTime, 1000);
+    updateTime();
+
+    // Trend Chart
+    const trendCtx = document.getElementById('trendChart').getContext('2d');
+    new Chart(trendCtx, {
+        type: 'line',
+        data: {
+            labels: [{% for day in daily_trend %}'{{ day.date|date:"M d" }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                label: 'Present',
+                data: [{% for day in daily_trend %}{{ day.count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                borderColor: '#48bb78',
+                backgroundColor: 'rgba(72, 187, 120, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: {{ active_employees }}
+                }
+            }
+        }
+    });
+
+    // Status Pie Chart
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Present', 'Late', 'Absent'],
+            datasets: [{
+                data: [{{ present_today|add:"-"|add:late_today }}, {{ late_today }}, {{ absent_today }}],
+                backgroundColor: ['#48bb78', '#ed8936', '#f56565'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+
+    // Auto-refresh every 30 seconds
+    setTimeout(() => location.reload(), 30000);
+</script>
+{% endblock %}

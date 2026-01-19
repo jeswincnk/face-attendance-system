@@ -1,0 +1,246 @@
+{% extends 'base.html' %}
+
+{% block title %}My Profile - {{ employee.full_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2><i class="bi bi-person-gear"></i> My Profile</h2>
+            <p class="text-muted">View and manage your profile information</p>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'accounts:employee_portal' %}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Back to Portal
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Profile Card -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow">
+                <div class="card-body text-center">
+                    {% if employee.photo %}
+                        <img src="{{ employee.photo.url }}" class="rounded-circle mb-3" style="width: 150px; height: 150px; object-fit: cover; border: 4px solid #667eea;">
+                    {% else %}
+                        <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3" style="width: 150px; height: 150px; font-size: 4rem;">
+                            <i class="bi bi-person"></i>
+                        </div>
+                    {% endif %}
+                    <h4 class="mb-1">{{ employee.full_name }}</h4>
+                    <p class="text-muted mb-2">{{ employee.employee_id }}</p>
+                    <span class="badge bg-primary">{{ employee.department.name|default:"No Department" }}</span>
+                </div>
+            </div>
+            
+            <!-- Face Enrollment Status -->
+            <div class="card shadow mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-person-bounding-box"></i> Face Enrollment</h6>
+                </div>
+                <div class="card-body">
+                    {% if face_encodings %}
+                        <div class="text-center">
+                            <i class="bi bi-check-circle-fill text-success fs-1"></i>
+                            <p class="mt-2 mb-0">{{ face_encodings.count }} face(s) enrolled</p>
+                        </div>
+                        <div class="row mt-3">
+                            {% for face in face_encodings|slice:":4" %}
+                            <div class="col-6 mb-2">
+                                <img src="{{ face.image.url }}" class="img-fluid rounded" alt="Face {{ forloop.counter }}">
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center">
+                            <i class="bi bi-x-circle-fill text-danger fs-1"></i>
+                            <p class="mt-2 mb-0">No face enrolled</p>
+                            <small class="text-muted">Contact admin to enroll your face</small>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile Details -->
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Profile Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted">Employee ID</label>
+                            <p class="form-control-plaintext fw-bold">{{ employee.employee_id }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted">Department</label>
+                            <p class="form-control-plaintext fw-bold">{{ employee.department.name|default:"Not Assigned" }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted">First Name</label>
+                            <p class="form-control-plaintext fw-bold">{{ employee.first_name }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted">Last Name</label>
+                            <p class="form-control-plaintext fw-bold">{{ employee.last_name }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted">Email</label>
+                            <p class="form-control-plaintext fw-bold">{{ employee.email }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted">Phone</label>
+                            <p class="form-control-plaintext fw-bold">{{ employee.phone|default:"Not provided" }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted">Gender</label>
+                            <p class="form-control-plaintext fw-bold">{{ employee.get_gender_display }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted">Date of Joining</label>
+                            <p class="form-control-plaintext fw-bold">{{ employee.date_of_joining|date:"M d, Y" }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Update Phone/Photo -->
+            <div class="card shadow mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-pencil"></i> Update Information</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="update_profile">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Phone Number</label>
+                                <input type="tel" name="phone" class="form-control" value="{{ employee.phone }}" placeholder="Enter phone number">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Profile Photo</label>
+                                <input type="file" name="photo" class="form-control" accept="image/*">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Update Profile
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Change Password -->
+            <div class="card shadow mt-4">
+                <div class="card-header bg-warning bg-opacity-25">
+                    <h5 class="mb-0"><i class="bi bi-shield-lock"></i> Change Password</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" id="passwordForm">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="change_password">
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Current Password <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="password" name="current_password" id="currentPassword" class="form-control" placeholder="Enter current password" required>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('currentPassword')">
+                                        <i class="bi bi-eye" id="currentPasswordIcon"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">New Password <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="password" name="new_password" id="newPassword" class="form-control" placeholder="Enter new password" minlength="6" required>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('newPassword')">
+                                        <i class="bi bi-eye" id="newPasswordIcon"></i>
+                                    </button>
+                                </div>
+                                <small class="text-muted">Minimum 6 characters</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Confirm New Password <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="password" name="confirm_password" id="confirmPassword" class="form-control" placeholder="Confirm new password" required>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('confirmPassword')">
+                                        <i class="bi bi-eye" id="confirmPasswordIcon"></i>
+                                    </button>
+                                </div>
+                                <div id="passwordMatch" class="form-text"></div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-warning" id="changePasswordBtn">
+                            <i class="bi bi-key"></i> Change Password
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function togglePassword(fieldId) {
+    const field = document.getElementById(fieldId);
+    const icon = document.getElementById(fieldId + 'Icon');
+    
+    if (field.type === 'password') {
+        field.type = 'text';
+        icon.classList.remove('bi-eye');
+        icon.classList.add('bi-eye-slash');
+    } else {
+        field.type = 'password';
+        icon.classList.remove('bi-eye-slash');
+        icon.classList.add('bi-eye');
+    }
+}
+
+// Password match validation
+document.getElementById('confirmPassword').addEventListener('input', function() {
+    const newPass = document.getElementById('newPassword').value;
+    const confirmPass = this.value;
+    const matchDiv = document.getElementById('passwordMatch');
+    const submitBtn = document.getElementById('changePasswordBtn');
+    
+    if (confirmPass === '') {
+        matchDiv.innerHTML = '';
+    } else if (newPass === confirmPass) {
+        matchDiv.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> Passwords match</span>';
+        submitBtn.disabled = false;
+    } else {
+        matchDiv.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> Passwords do not match</span>';
+    }
+});
+
+document.getElementById('newPassword').addEventListener('input', function() {
+    const confirmPass = document.getElementById('confirmPassword');
+    if (confirmPass.value) {
+        confirmPass.dispatchEvent(new Event('input'));
+    }
+});
+
+// Form validation
+document.getElementById('passwordForm').addEventListener('submit', function(e) {
+    const newPass = document.getElementById('newPassword').value;
+    const confirmPass = document.getElementById('confirmPassword').value;
+    
+    if (newPass !== confirmPass) {
+        e.preventDefault();
+        alert('Passwords do not match!');
+        return false;
+    }
+    
+    if (newPass.length < 6) {
+        e.preventDefault();
+        alert('Password must be at least 6 characters!');
+        return false;
+    }
+});
+</script>
+{% endblock %}
