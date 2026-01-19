@@ -1,0 +1,29 @@
+databases:
+  - name: face-attendance-db
+    databaseName: face_attendance
+    user: face_admin
+    plan: free
+
+services:
+  - type: web
+    name: face-attendance-system
+    runtime: python
+    plan: free
+    buildCommand: |
+      pip install -r requirements.txt
+      python manage.py collectstatic --noinput
+      python manage.py migrate
+    startCommand: gunicorn face_attendance_system.wsgi:application
+    envVars:
+      - key: DEBUG
+        value: False
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: .onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: face-attendance-db
+          property: connectionString
+      - key: PYTHON_VERSION
+        value: 3.11.4
