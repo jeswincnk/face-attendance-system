@@ -1,9 +1,8 @@
 # Django Framework
 django>=5.0,<7.0
 
-# Computer Vision & Face Recognition
-opencv-contrib-python>=4.8.0
-mediapipe>=0.10.0
+# Computer Vision & Face Recognition (headless for server)
+opencv-contrib-python-headless>=4.8.0
 scipy>=1.10.0
 
 # Image Processing

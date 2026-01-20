@@ -11,8 +11,18 @@ Features:
 
 import cv2
 import numpy as np
-import mediapipe as mp
-from scipy.spatial import distance
+try:
+    import mediapipe as mp
+    MEDIAPIPE_AVAILABLE = True
+except ImportError:
+    MEDIAPIPE_AVAILABLE = False
+    mp = None
+
+try:
+    from scipy.spatial import distance
+except ImportError:
+    distance = None
+
 from collections import deque
 import time
 
@@ -22,6 +32,12 @@ class LivenessDetector:
     Advanced liveness detection using MediaPipe Face Mesh
     Detects if a real person is in front of the camera vs a photo/video
     """
+    
+    def __init__(self):
+        if not MEDIAPIPE_AVAILABLE:
+            self.enabled = False
+            return
+        self.enabled = True
     
     # Eye landmark indices for MediaPipe Face Mesh
     # Left eye
