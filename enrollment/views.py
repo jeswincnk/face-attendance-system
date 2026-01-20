@@ -71,13 +71,14 @@ def employee_detail(request, pk):
             avg_work_hours = (total_seconds / count) / 3600
     
     # Get presence tracking history
-    presence_history = PresenceTracking.objects.filter(
+    presence_history_qs = PresenceTracking.objects.filter(
         employee=employee,
         date__gte=last_30_days
-    ).order_by('-date')[:10]
+    )
+    presence_history = presence_history_qs.order_by('-date')[:10]
     
-    auto_absent_count = presence_history.filter(auto_marked_absent=True).count()
-    auto_checkout_count = presence_history.filter(auto_checked_out=True).count()
+    auto_absent_count = presence_history_qs.filter(auto_marked_absent=True).count()
+    auto_checkout_count = presence_history_qs.filter(auto_checked_out=True).count()
     
     context = {
         'employee': employee,
@@ -97,10 +98,27 @@ def employee_detail(request, pk):
 
 def employee_create(request):
     """Create new employee"""
+    from django.contrib.auth.models import User
+    
     if request.method == 'POST':
         form = EmployeeForm(request.POST, request.FILES)
         if form.is_valid():
             employee = form.save()
+            
+            # Auto-create user account for employee login
+            username = employee.employee_id.lower()
+            if not User.objects.filter(username=username).exists():
+                user = User.objects.create_user(
+                    username=username,
+                    email=employee.email,
+                    password='employee123',
+                    first_name=employee.first_name,
+                    last_name=employee.last_name
+                )
+                employee.user = user
+                employee.save()
+                messages.info(request, f'Login created: Username: {username}, Password: employee123')
+            
             messages.success(request, f'Employee {employee.full_name} created successfully!')
             return redirect('enrollment:employee_detail', pk=employee.pk)
     else:
