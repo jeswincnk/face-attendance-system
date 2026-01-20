@@ -8,8 +8,15 @@ from django.utils import timezone
 from datetime import datetime, date, timedelta
 import json
 import base64
-import numpy as np
-import cv2
+
+try:
+    import numpy as np
+    import cv2
+    OPENCV_AVAILABLE = True
+except ImportError:
+    np = None
+    cv2 = None
+    OPENCV_AVAILABLE = False
 
 from enrollment.models import Employee, FaceEncoding
 from attendance.models import AttendanceRecord, AttendanceSettings

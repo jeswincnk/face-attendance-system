@@ -3,8 +3,15 @@ Face recognition utilities using OpenCV DNN and face detection
 Simplified approach without face_recognition library dependency
 """
 
-import cv2
-import numpy as np
+try:
+    import cv2
+    import numpy as np
+    OPENCV_AVAILABLE = True
+except ImportError:
+    OPENCV_AVAILABLE = False
+    cv2 = None
+    np = None
+
 import pickle
 from pathlib import Path
 from django.conf import settings
@@ -18,8 +25,15 @@ class FaceRecognitionEngine:
         self.known_face_encodings = []
         self.known_face_names = []
         self.known_employee_ids = []
-        self.tolerance = settings.CONFIDENCE_THRESHOLD
+        self.tolerance = getattr(settings, 'CONFIDENCE_THRESHOLD', 0.7)
         self.lbph_threshold = getattr(settings, 'FACE_RECOGNITION_CONFIDENCE_THRESHOLD', 50)
+        self.is_trained = False
+        self.recognition_threshold = 65
+        
+        if not OPENCV_AVAILABLE:
+            self.face_cascade = None
+            self.face_recognizer = None
+            return
         
         # Load face detector with better accuracy
         self.face_cascade = cv2.CascadeClassifier(
@@ -27,25 +41,18 @@ class FaceRecognitionEngine:
         )
         
         # Initialize face recognizer with optimized parameters for accuracy
-        # LBPH parameters tuned for better recognition:
-        # - radius=2: Captures more texture detail
-        # - neighbors=8: Standard for good pattern capture
-        # - grid_x/y=8: Good spatial resolution
         self.face_recognizer = cv2.face.LBPHFaceRecognizer_create(
-            radius=2,       # Larger radius captures more texture
-            neighbors=8,    # Number of sampling points
-            grid_x=8,       # Grid size X
-            grid_y=8,       # Grid size Y
-            threshold=150   # We check manually with stricter threshold
+            radius=2,
+            neighbors=8,
+            grid_x=8,
+            grid_y=8,
+            threshold=150
         )
-        self.is_trained = False
-        
-        # Recognition confidence threshold (LBPH: lower = better match)
-        # 50-60 is strict, 70-80 is lenient
-        self.recognition_threshold = 65
     
     def load_encodings_from_db(self):
         """Load all face encodings from database"""
+        if not OPENCV_AVAILABLE:
+            return
         from enrollment.models import Employee, FaceEncoding
         
         self.known_face_encodings = []

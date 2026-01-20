@@ -1,16 +1,20 @@
 from django.shortcuts import render
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from .face_utils import FaceRecognitionEngine
+from .face_utils import FaceRecognitionEngine, OPENCV_AVAILABLE
 from attendance.models import AttendanceRecord, AttendanceSettings, PresenceTracking
 from enrollment.models import Employee
 from django.utils import timezone
-import cv2
 import threading
 import json
 import time
 from datetime import datetime, timedelta, date
 import io
+
+if OPENCV_AVAILABLE:
+    import cv2
+else:
+    cv2 = None
 
 
 # Global variables for camera and recognition engine
@@ -24,6 +28,8 @@ streaming_active = False  # Track if streaming should continue
 def initialize_recognition_engine():
     """Initialize face recognition engine with encodings from database"""
     global recognition_engine
+    if not OPENCV_AVAILABLE:
+        return None
     if recognition_engine is None:
         recognition_engine = FaceRecognitionEngine()
         count = recognition_engine.load_encodings_from_db()
@@ -34,6 +40,8 @@ def initialize_recognition_engine():
 def get_camera():
     """Get or create camera instance"""
     global camera
+    if not OPENCV_AVAILABLE:
+        return None
     with camera_lock:
         if camera is None or not camera.isOpened():
             # Try multiple camera backends

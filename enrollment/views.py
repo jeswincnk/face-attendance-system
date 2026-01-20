@@ -6,12 +6,16 @@ from django.utils import timezone
 from datetime import timedelta
 from .models import Employee, Department, FaceEncoding
 from .forms import EmployeeForm, DepartmentForm, FaceEncodingForm
-from recognition.face_utils import FaceRecognitionEngine, save_face_encoding_to_db
+from recognition.face_utils import FaceRecognitionEngine, save_face_encoding_to_db, OPENCV_AVAILABLE
 import json
 import base64
-import numpy as np
 from PIL import Image
 import io
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
 
 
 def employee_list(request):

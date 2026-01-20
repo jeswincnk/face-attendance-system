@@ -1,13 +1,8 @@
 # Django Framework
 django>=5.0,<7.0
 
-# Computer Vision & Face Recognition (headless for server)
-opencv-contrib-python-headless>=4.8.0
-scipy>=1.10.0
-
 # Image Processing
 pillow>=10.0.0
-numpy>=1.24.0,<2.0
 
 # Database
 psycopg2-binary>=2.9.0
@@ -17,10 +12,6 @@ dj-database-url>=2.0.0
 gunicorn>=21.0.0
 whitenoise>=6.6.0
 django-cors-headers>=4.0.0
-
-# Async Support
-channels>=4.0.0
-daphne>=4.0.0
 
 # Report Generation
 reportlab>=4.0.0
